@@ -73,6 +73,68 @@ HEROES = {
 }
 
 
+L10N = {
+    "en": {
+        "language_title": "CHOOSE LANGUAGE",
+        "language_subtitle": "Python MOBA Prototype",
+        "hero_title": "SELECT HERO",
+        "choose_hero": "CHOOSE YOUR HERO",
+        "blue": "BLUE",
+        "red": "RED",
+        "victory_blue": "BLUE VICTORY",
+        "victory_red": "RED VICTORY",
+        "exit": "Close the window to exit",
+        "deployed": "{name} deployed",
+        "defeated": "{killer} defeated {victim}",
+        "destroyed": "{name} destroyed",
+        "hero_names": {
+            "vanguard": "Vanguard",
+            "ranger": "Star Ranger",
+            "arcanist": "Storm Arcanist",
+        },
+        "hero_roles": {
+            "vanguard": "Fighter",
+            "ranger": "Marksman",
+            "arcanist": "Mage",
+        },
+        "skills": {
+            "vanguard": {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"},
+            "ranger": {"q": "Triple Shot", "e": "Quick Step", "r": "Arrow Storm"},
+            "arcanist": {"q": "Storm Orb", "e": "Arc Shield", "r": "Thunder Field"},
+        },
+    },
+    "zh": {
+        "language_title": "选择语言",
+        "language_subtitle": "Python 王者类 MOBA 原型",
+        "hero_title": "选择英雄",
+        "choose_hero": "选择你的英雄",
+        "blue": "蓝方",
+        "red": "红方",
+        "victory_blue": "蓝方胜利",
+        "victory_red": "红方胜利",
+        "exit": "关闭窗口退出",
+        "deployed": "{name} 已出战",
+        "defeated": "{killer} 击败了 {victim}",
+        "destroyed": "{name} 被摧毁",
+        "hero_names": {
+            "vanguard": "铁卫",
+            "ranger": "星弓",
+            "arcanist": "雷法",
+        },
+        "hero_roles": {
+            "vanguard": "战士",
+            "ranger": "射手",
+            "arcanist": "法师",
+        },
+        "skills": {
+            "vanguard": {"q": "破阵矛", "e": "铁壁冲锋", "r": "裂地击"},
+            "ranger": {"q": "三连矢", "e": "疾步", "r": "箭雨"},
+            "arcanist": {"q": "雷光法球", "e": "奥术护盾", "r": "雷暴领域"},
+        },
+    },
+}
+
+
 @dataclass
 class Unit:
     x: float
@@ -180,12 +242,14 @@ class MobaGame:
         self.message = ""
 
         self.paths = {
-            "top": [(92, 608), (96, 150), (910, 146), (1010, 92)],
-            "mid": [(92, 608), (550, 350), (1010, 92)],
-            "bot": [(92, 608), (250, 565), (920, 565), (1010, 92)],
+            "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],
+            "mid": [(92, 608), (550, 350), (1002, 112)],
+            "bot": [(92, 608), (250, 565), (920, 565), (1002, 112)],
         }
 
-        self.state = "select"
+        self.language = "zh"
+        self.state = "language"
+        self.language_buttons = []
         self.hero_cards = []
         self.selected_hero_key = "vanguard"
         self.reset_match(self.selected_hero_key)
@@ -196,6 +260,21 @@ class MobaGame:
         self.root.bind("<Button-1>", self.on_left_click)
         self.root.bind("<Button-3>", self.on_right_click)
         self.root.focus_force()
+
+    def text(self, key, **kwargs):
+        value = L10N[self.language][key]
+        if kwargs:
+            return value.format(**kwargs)
+        return value
+
+    def hero_name(self, hero_key):
+        return L10N[self.language]["hero_names"][hero_key]
+
+    def hero_role(self, hero_key):
+        return L10N[self.language]["hero_roles"][hero_key]
+
+    def hero_skill(self, hero_key, skill_key):
+        return L10N[self.language]["skills"][hero_key][skill_key]
 
     def make_hero(self, hero_key, team, x, y):
         config = HEROES[hero_key]
@@ -228,8 +307,8 @@ class MobaGame:
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
         self.enemy_hero.name = "Red Vanguard"
-        self.blue_core = Core(74, 626, "blue", 1200, 1200, 35, name="Blue Core")
-        self.red_core = Core(1026, 74, "red", 1200, 1200, 35, name="Red Core")
+        self.blue_core = Core(74, 626, "blue", 1000, 1000, 35, name="Blue Core")
+        self.red_core = Core(1008, 112, "red", 1000, 1000, 35, name="Red Core")
         self.towers = self.make_towers()
         self.minions = []
         self.projectiles = []
@@ -253,8 +332,8 @@ class MobaGame:
                 x=x,
                 y=y,
                 team=team,
-                hp=440,
-                max_hp=440,
+                hp=360,
+                max_hp=360,
                 radius=24,
                 attack_damage=52,
                 attack_range=180,
@@ -274,6 +353,15 @@ class MobaGame:
 
     def on_key_press(self, event):
         key = event.keysym.lower()
+        if self.state == "language":
+            if key in {"1", "c"}:
+                self.choose_language("zh")
+            elif key in {"2", "e"}:
+                self.choose_language("en")
+            elif key == "escape":
+                self.root.destroy()
+            return
+
         if self.state == "select":
             if key in {"1", "2", "3"}:
                 hero_key = list(HEROES.keys())[int(key) - 1]
@@ -304,21 +392,34 @@ class MobaGame:
     def on_left_click(self, event):
         self.mouse_x = event.x
         self.mouse_y = event.y
+        if self.state == "language":
+            self.select_language_at(self.mouse_x, self.mouse_y)
+            return
         if self.state == "select":
             self.select_card_at(self.mouse_x, self.mouse_y)
             return
         self.hero_attack(self.player)
 
     def on_right_click(self, _event):
-        if self.state == "select":
+        if self.state != "playing":
             return
         self.cast_e(self.player)
+
+    def choose_language(self, language):
+        self.language = language
+        self.state = "select"
 
     def choose_hero(self, hero_key):
         self.reset_match(hero_key)
         self.state = "playing"
         self.last_time = time.perf_counter()
-        self.show_message(f"{self.player.name} deployed")
+        self.show_message(self.text("deployed", name=self.hero_name(hero_key)))
+
+    def select_language_at(self, x, y):
+        for language, left, top, right, bottom in self.language_buttons:
+            if left <= x <= right and top <= y <= bottom:
+                self.choose_language(language)
+                return
 
     def select_card_at(self, x, y):
         for hero_key, left, top, right, bottom in self.hero_cards:
@@ -493,7 +594,7 @@ class MobaGame:
                 p.x += p.vx * p.speed * dt
                 p.y += p.vy * p.speed * dt
                 hit = False
-                for target in self.enemies_of(p.team, include_cores=False):
+                for target in self.enemies_of(p.team, include_cores=True):
                     if target.alive and dist_xy(p.x, p.y, target.x, target.y) <= p.radius + target.radius:
                         self.apply_damage(target, p.damage, p.team)
                         self.effects.append(Effect(p.x, p.y, 6, 34, p.color, 0.24, 0.24))
@@ -529,7 +630,13 @@ class MobaGame:
                 killer = self.enemy_hero if hero.team == "blue" else self.player
                 killer.kills += 1
                 killer.gold += 80
-                self.show_message(f"{killer.name} defeated {hero.name}")
+                self.show_message(
+                    self.text(
+                        "defeated",
+                        killer=self.hero_name(killer.hero_key),
+                        victim=self.hero_name(hero.hero_key),
+                    )
+                )
 
     def check_winner(self):
         if not self.blue_core.alive:
@@ -721,11 +828,11 @@ class MobaGame:
 
         if hero.hero_key == "arcanist":
             self.effects.append(Effect(self.mouse_x, self.mouse_y, 14, 130, hero.accent, 0.55, 0.55))
-            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, 176)
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, 176, include_cores=True)
             return
 
         self.effects.append(Effect(self.mouse_x, self.mouse_y, 10, 106, hero.accent, 0.45, 0.45))
-        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, 148)
+        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, 148, include_cores=True)
 
     def cast_ai_bolt(self, hero, target):
         hero.cooldowns["q"] = self.now() + 4.2
@@ -747,19 +854,24 @@ class MobaGame:
         )
 
     def apply_damage(self, target, amount, attacker_team):
+        if isinstance(target, (Tower, Core)):
+            amount *= 1.35 if attacker_team == "blue" else 1.15
         was_alive = target.alive
         target.take_damage(amount)
         if was_alive and not target.alive:
             if isinstance(target, Tower):
-                self.show_message(f"{target.name} destroyed")
+                self.show_message(self.text("destroyed", name=target.name))
                 if attacker_team == "blue":
                     self.player.gold += 90
             elif isinstance(target, Core):
-                self.show_message(f"{target.name} destroyed")
+                self.show_message(self.text("destroyed", name=target.name))
 
     def draw(self):
         c = self.canvas
         c.delete("all")
+        if self.state == "language":
+            self.draw_language(c)
+            return
         if self.state == "select":
             self.draw_select(c)
             return
@@ -795,20 +907,45 @@ class MobaGame:
             )
         self.draw_ui(c)
 
+    def draw_language(self, c):
+        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#14191c", outline="")
+        c.create_rectangle(0, 0, WIDTH, 118, fill="#0f1416", outline="")
+        c.create_text(WIDTH // 2, 42, text="LANGUAGE / 语言", fill="#f5f1d7", font=("Segoe UI", 30, "bold"))
+        c.create_text(WIDTH // 2, 78, text="Python MOBA Prototype", fill="#9ea898", font=("Segoe UI", 13))
+
+        self.language_buttons = []
+        buttons = [("zh", "中文", "进入中文界面"), ("en", "English", "Use English UI")]
+        left = 294
+        top = 252
+        for index, (language, title, subtitle) in enumerate(buttons):
+            x1 = left + index * 272
+            x2 = x1 + 218
+            y1 = top
+            y2 = top + 154
+            self.language_buttons.append((language, x1, y1, x2, y2))
+            active = x1 <= self.mouse_x <= x2 and y1 <= self.mouse_y <= y2
+            outline = "#d8cf9b" if active else "#394043"
+            c.create_rectangle(x1, y1, x2, y2, fill="#20282b", outline=outline, width=3)
+            c.create_text((x1 + x2) // 2, y1 + 60, text=title, fill="#f5f1d7", font=("Segoe UI", 25, "bold"))
+            c.create_text((x1 + x2) // 2, y1 + 102, text=subtitle, fill="#aeb8ad", font=("Segoe UI", 12))
+
+        c.create_rectangle(384, 518, 716, 562, fill="#101416", outline="#394043")
+        c.create_text(WIDTH // 2, 540, text="MOBA READY", fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+
     def draw_select(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#151b1d", outline="")
         c.create_rectangle(0, 0, WIDTH, 95, fill="#101416", outline="")
         c.create_text(
             WIDTH // 2,
             38,
-            text="SELECT HERO",
+            text=self.text("hero_title"),
             fill="#f5f1d7",
             font=("Segoe UI", 28, "bold"),
         )
         c.create_text(
             WIDTH // 2,
             72,
-            text="Python MOBA Prototype",
+            text=self.text("language_subtitle"),
             fill="#9ea898",
             font=("Segoe UI", 13),
         )
@@ -828,8 +965,8 @@ class MobaGame:
             outline = config["accent"] if active else "#394043"
             c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=outline, width=3)
             c.create_rectangle(left, top, right, top + 76, fill="#161c1f", outline="")
-            c.create_text(left + 24, top + 26, text=config["name"], fill="#f5f1d7", anchor="w", font=("Segoe UI", 18, "bold"))
-            c.create_text(left + 24, top + 54, text=config["role"], fill=config["accent"], anchor="w", font=("Segoe UI", 12, "bold"))
+            c.create_text(left + 24, top + 26, text=self.hero_name(hero_key), fill="#f5f1d7", anchor="w", font=("Segoe UI", 18, "bold"))
+            c.create_text(left + 24, top + 54, text=self.hero_role(hero_key), fill=config["accent"], anchor="w", font=("Segoe UI", 12, "bold"))
             self.draw_hero_portrait(c, left + card_w // 2, top + 137, config)
 
             stat_y = top + 215
@@ -837,14 +974,14 @@ class MobaGame:
             self.draw_stat(c, left + 26, stat_y + 38, "SPD", config["speed"], 240, "#76b7ff")
             self.draw_stat(c, left + 26, stat_y + 76, "ATK", config["attack_damage"], 42, "#f7d765")
             c.create_text(left + 26, top + 336, text="Q", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-            c.create_text(left + 54, top + 336, text=config["skills"]["q"], fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+            c.create_text(left + 54, top + 336, text=self.hero_skill(hero_key, "q"), fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
             c.create_text(left + 26, top + 362, text="E", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-            c.create_text(left + 54, top + 362, text=config["skills"]["e"], fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+            c.create_text(left + 54, top + 362, text=self.hero_skill(hero_key, "e"), fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
             c.create_text(left + 26, top + 388, text="R", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-            c.create_text(left + 54, top + 388, text=config["skills"]["r"], fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+            c.create_text(left + 54, top + 388, text=self.hero_skill(hero_key, "r"), fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
 
         c.create_rectangle(358, 590, 742, 636, fill="#101416", outline="#394043")
-        c.create_text(WIDTH // 2, 613, text="CHOOSE YOUR HERO", fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+        c.create_text(WIDTH // 2, 613, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
 
     def draw_hero_portrait(self, c, x, y, config):
         accent = config["accent"]
@@ -936,10 +1073,10 @@ class MobaGame:
 
     def draw_ui(self, c):
         c.create_rectangle(0, 0, WIDTH, 46, fill="#111719", outline="")
-        c.create_text(24, 23, text=self.player.name.upper(), fill="#78a3ff", anchor="w", font=("Segoe UI", 13, "bold"))
+        c.create_text(24, 23, text=self.hero_name(self.player.hero_key), fill="#78a3ff", anchor="w", font=("Segoe UI", 13, "bold"))
         c.create_text(190, 23, text=f"K {self.player.kills}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
         c.create_text(260, 23, text=f"G {self.player.gold}", fill="#f7d765", anchor="w", font=("Segoe UI", 13))
-        c.create_text(WIDTH - 24, 23, text="RED", fill="#ff7b7c", anchor="e", font=("Segoe UI", 13, "bold"))
+        c.create_text(WIDTH - 24, 23, text=self.text("red"), fill="#ff7b7c", anchor="e", font=("Segoe UI", 13, "bold"))
         c.create_text(WIDTH - 120, 23, text=f"K {self.enemy_hero.kills}", fill="#f5f1d7", anchor="e", font=("Segoe UI", 13))
 
         self.draw_skill(c, WIDTH // 2 - 102, HEIGHT - 58, "Q", self.player.cooldowns["q"], self.player.skill_cds["q"])
@@ -953,9 +1090,9 @@ class MobaGame:
         if self.match_over:
             overlay = "#17291f" if self.winner == "blue" else "#35191d"
             c.create_rectangle(300, 248, 800, 452, fill=overlay, outline="#f5f1d7", width=2)
-            text = "BLUE VICTORY" if self.winner == "blue" else "RED VICTORY"
+            text = self.text("victory_blue") if self.winner == "blue" else self.text("victory_red")
             c.create_text(WIDTH // 2, 326, text=text, fill="#f5f1d7", font=("Segoe UI", 34, "bold"))
-            c.create_text(WIDTH // 2, 382, text="Close the window to exit", fill="#cfc8ac", font=("Segoe UI", 14))
+            c.create_text(WIDTH // 2, 382, text=self.text("exit"), fill="#cfc8ac", font=("Segoe UI", 14))
 
     def draw_skill(self, c, x, y, label, ready_at, full_cd):
         size = 44
