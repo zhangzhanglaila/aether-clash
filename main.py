@@ -73,6 +73,13 @@ HEROES = {
 }
 
 
+ITEMS = {
+    "blade": {"cost": 120, "attack_damage": 8, "max_stacks": 3, "color": "#f7d765"},
+    "boots": {"cost": 100, "speed": 18, "max_stacks": 3, "color": "#76b7ff"},
+    "guard": {"cost": 150, "max_hp": 110, "max_stacks": 3, "color": "#48d06b"},
+}
+
+
 L10N = {
     "en": {
         "language_title": "CHOOSE LANGUAGE",
@@ -87,6 +94,13 @@ L10N = {
         "deployed": "{name} deployed",
         "defeated": "{killer} defeated {victim}",
         "destroyed": "{name} destroyed",
+        "level_up": "{name} reached Lv.{level}",
+        "need_base": "Return to base to buy equipment",
+        "not_enough_gold": "Not enough gold",
+        "item_max": "Equipment is maxed",
+        "bought": "Bought {item}",
+        "shop": "SHOP",
+        "level": "LV",
         "hero_names": {
             "vanguard": "Vanguard",
             "ranger": "Star Ranger",
@@ -102,6 +116,11 @@ L10N = {
             "ranger": {"q": "Triple Shot", "e": "Quick Step", "r": "Arrow Storm"},
             "arcanist": {"q": "Storm Orb", "e": "Arc Shield", "r": "Thunder Field"},
         },
+        "items": {
+            "blade": "Blade",
+            "boots": "Boots",
+            "guard": "Guard",
+        },
     },
     "zh": {
         "language_title": "选择语言",
@@ -116,6 +135,13 @@ L10N = {
         "deployed": "{name} 已出战",
         "defeated": "{killer} 击败了 {victim}",
         "destroyed": "{name} 被摧毁",
+        "level_up": "{name} 升到 {level} 级",
+        "need_base": "回到己方水晶附近才能购买",
+        "not_enough_gold": "金币不足",
+        "item_max": "装备已满级",
+        "bought": "已购买 {item}",
+        "shop": "商店",
+        "level": "等级",
         "hero_names": {
             "vanguard": "铁卫",
             "ranger": "星弓",
@@ -130,6 +156,11 @@ L10N = {
             "vanguard": {"q": "破阵矛", "e": "铁壁冲锋", "r": "裂地击"},
             "ranger": {"q": "三连矢", "e": "疾步", "r": "箭雨"},
             "arcanist": {"q": "雷光法球", "e": "奥术护盾", "r": "雷暴领域"},
+        },
+        "items": {
+            "blade": "破军刃",
+            "boots": "疾行靴",
+            "guard": "守护甲",
         },
     },
 }
@@ -168,8 +199,11 @@ class Hero(Unit):
     skill_cds: dict = field(default_factory=lambda: {"q": 3.6, "e": 5.5, "r": 13.5})
     skill_names: dict = field(default_factory=lambda: {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"})
     level: int = 1
+    xp: int = 0
+    next_xp: int = 120
     gold: int = 0
     kills: int = 0
+    equipment: dict = field(default_factory=lambda: {"blade": 0, "boots": 0, "guard": 0})
     respawn_at: float = 0
     cooldowns: dict = field(default_factory=lambda: {"q": 0, "e": 0, "r": 0})
 
@@ -276,6 +310,9 @@ class MobaGame:
     def hero_skill(self, hero_key, skill_key):
         return L10N[self.language]["skills"][hero_key][skill_key]
 
+    def item_name(self, item_key):
+        return L10N[self.language]["items"][item_key]
+
     def make_hero(self, hero_key, team, x, y):
         config = HEROES[hero_key]
         return Hero(
@@ -307,12 +344,35 @@ class MobaGame:
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
         self.enemy_hero.name = "Red Vanguard"
-        self.blue_core = Core(74, 626, "blue", 1000, 1000, 35, name="Blue Core")
-        self.red_core = Core(1008, 112, "red", 1000, 1000, 35, name="Red Core")
+        self.blue_core = Core(
+            74,
+            626,
+            "blue",
+            1000,
+            1000,
+            35,
+            attack_damage=70,
+            attack_range=210,
+            attack_cd=0.85,
+            name="Blue Core",
+        )
+        self.red_core = Core(
+            1008,
+            112,
+            "red",
+            1000,
+            1000,
+            35,
+            attack_damage=70,
+            attack_range=210,
+            attack_cd=0.85,
+            name="Red Core",
+        )
         self.towers = self.make_towers()
         self.minions = []
         self.projectiles = []
         self.effects = []
+        self.shop_cards = []
 
     def make_towers(self):
         data = [
@@ -377,8 +437,11 @@ class MobaGame:
             self.cast_e(self.player)
         elif key == "r":
             self.cast_r(self.player)
+        elif key in {"1", "2", "3"}:
+            item_key = list(ITEMS.keys())[int(key) - 1]
+            self.buy_item(item_key)
         elif key == "space":
-            self.on_left_click(event)
+            self.hero_attack(self.player)
         elif key == "escape":
             self.root.destroy()
 
@@ -397,6 +460,8 @@ class MobaGame:
             return
         if self.state == "select":
             self.select_card_at(self.mouse_x, self.mouse_y)
+            return
+        if self.select_shop_at(self.mouse_x, self.mouse_y):
             return
         self.hero_attack(self.player)
 
@@ -427,6 +492,45 @@ class MobaGame:
                 self.choose_hero(hero_key)
                 return
 
+    def near_shop(self):
+        return self.player.alive and dist(self.player, self.blue_core) <= 155
+
+    def buy_item(self, item_key):
+        if self.state != "playing":
+            return False
+        if not self.near_shop():
+            self.show_message(self.text("need_base"))
+            return False
+        item = ITEMS[item_key]
+        current_level = self.player.equipment[item_key]
+        if current_level >= item["max_stacks"]:
+            self.show_message(self.text("item_max"))
+            return False
+        cost = item["cost"] + current_level * 70
+        if self.player.gold < cost:
+            self.show_message(self.text("not_enough_gold"))
+            return False
+
+        self.player.gold -= cost
+        self.player.equipment[item_key] += 1
+        if "attack_damage" in item:
+            self.player.attack_damage += item["attack_damage"]
+        if "speed" in item:
+            self.player.speed += item["speed"]
+        if "max_hp" in item:
+            self.player.max_hp += item["max_hp"]
+            self.player.hp += item["max_hp"]
+        self.show_message(self.text("bought", item=self.item_name(item_key)))
+        return True
+
+    def select_shop_at(self, x, y):
+        if not self.near_shop():
+            return False
+        for item_key, left, top, right, bottom in self.shop_cards:
+            if left <= x <= right and top <= y <= bottom:
+                return self.buy_item(item_key)
+        return False
+
     def loop(self):
         current = time.perf_counter()
         dt = min(0.05, current - self.last_time)
@@ -446,6 +550,7 @@ class MobaGame:
         self.update_enemy_hero(dt)
         self.update_minions(dt)
         self.update_towers()
+        self.update_cores()
         self.update_projectiles(dt)
         self.update_effects(dt)
         self.cleanup_dead()
@@ -575,6 +680,14 @@ class MobaGame:
             if target:
                 self.unit_attack(tower, target)
 
+    def update_cores(self):
+        for core in [self.blue_core, self.red_core]:
+            if not core.alive:
+                continue
+            target = self.nearest_enemy(core, core.attack_range, include_cores=False)
+            if target:
+                self.unit_attack(core, target)
+
     def update_projectiles(self, dt):
         kept = []
         for p in self.projectiles:
@@ -618,11 +731,7 @@ class MobaGame:
         self.effects = kept
 
     def cleanup_dead(self):
-        before = len(self.minions)
         self.minions = [m for m in self.minions if m.alive]
-        gained = before - len(self.minions)
-        if gained:
-            self.player.gold += gained * 4
 
         for hero in [self.player, self.enemy_hero]:
             if not hero.alive and hero.respawn_at == 0:
@@ -694,9 +803,9 @@ class MobaGame:
                 unit.y,
                 unit.team,
                 unit.attack_damage,
-                330 if isinstance(unit, Tower) else 250,
+                330 if isinstance(unit, (Tower, Core)) else 250,
                 target=target,
-                radius=6 if isinstance(unit, Tower) else 4,
+                radius=7 if isinstance(unit, Core) else 6 if isinstance(unit, Tower) else 4,
                 ttl=2.2,
                 color=color,
             )
@@ -853,16 +962,40 @@ class MobaGame:
             )
         )
 
+    def reward_player(self, target):
+        if isinstance(target, Minion):
+            self.player.gold += 8
+            self.gain_xp(28)
+        elif isinstance(target, Tower):
+            self.player.gold += 120
+            self.gain_xp(90)
+        elif isinstance(target, Hero):
+            self.player.gold += 120
+            self.gain_xp(120)
+
+    def gain_xp(self, amount):
+        hero = self.player
+        hero.xp += amount
+        while hero.xp >= hero.next_xp:
+            hero.xp -= hero.next_xp
+            hero.level += 1
+            hero.next_xp = int(hero.next_xp * 1.32)
+            hero.max_hp += 48
+            hero.hp = min(hero.max_hp, hero.hp + 48)
+            hero.attack_damage += 4
+            hero.attack_range += 3
+            self.show_message(self.text("level_up", name=self.hero_name(hero.hero_key), level=hero.level))
+
     def apply_damage(self, target, amount, attacker_team):
         if isinstance(target, (Tower, Core)):
             amount *= 1.35 if attacker_team == "blue" else 1.15
         was_alive = target.alive
         target.take_damage(amount)
         if was_alive and not target.alive:
+            if attacker_team == "blue" and target.team == "red":
+                self.reward_player(target)
             if isinstance(target, Tower):
                 self.show_message(self.text("destroyed", name=target.name))
-                if attacker_team == "blue":
-                    self.player.gold += 90
             elif isinstance(target, Core):
                 self.show_message(self.text("destroyed", name=target.name))
 
@@ -1074,8 +1207,12 @@ class MobaGame:
     def draw_ui(self, c):
         c.create_rectangle(0, 0, WIDTH, 46, fill="#111719", outline="")
         c.create_text(24, 23, text=self.hero_name(self.player.hero_key), fill="#78a3ff", anchor="w", font=("Segoe UI", 13, "bold"))
-        c.create_text(190, 23, text=f"K {self.player.kills}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
-        c.create_text(260, 23, text=f"G {self.player.gold}", fill="#f7d765", anchor="w", font=("Segoe UI", 13))
+        c.create_text(164, 23, text=f"{self.text('level')} {self.player.level}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
+        c.create_text(248, 23, text=f"K {self.player.kills}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
+        c.create_text(318, 23, text=f"G {self.player.gold}", fill="#f7d765", anchor="w", font=("Segoe UI", 13))
+        xp_pct = clamp(self.player.xp / self.player.next_xp, 0, 1)
+        c.create_rectangle(414, 17, 544, 29, fill="#252a2a", outline="")
+        c.create_rectangle(414, 17, 414 + 130 * xp_pct, 29, fill="#b38cff", outline="")
         c.create_text(WIDTH - 24, 23, text=self.text("red"), fill="#ff7b7c", anchor="e", font=("Segoe UI", 13, "bold"))
         c.create_text(WIDTH - 120, 23, text=f"K {self.enemy_hero.kills}", fill="#f5f1d7", anchor="e", font=("Segoe UI", 13))
 
@@ -1087,12 +1224,36 @@ class MobaGame:
         if self.now() < self.message_until:
             c.create_text(WIDTH // 2, 78, text=self.message, fill="#f5f1d7", font=("Segoe UI", 18, "bold"))
 
+        if self.near_shop():
+            self.draw_shop(c)
+
         if self.match_over:
             overlay = "#17291f" if self.winner == "blue" else "#35191d"
             c.create_rectangle(300, 248, 800, 452, fill=overlay, outline="#f5f1d7", width=2)
             text = self.text("victory_blue") if self.winner == "blue" else self.text("victory_red")
             c.create_text(WIDTH // 2, 326, text=text, fill="#f5f1d7", font=("Segoe UI", 34, "bold"))
             c.create_text(WIDTH // 2, 382, text=self.text("exit"), fill="#cfc8ac", font=("Segoe UI", 14))
+
+    def draw_shop(self, c):
+        self.shop_cards = []
+        left = WIDTH - 328
+        top = HEIGHT - 236
+        c.create_rectangle(left, top, WIDTH - 24, HEIGHT - 84, fill="#111719", outline="#d8cf9b", width=2)
+        c.create_text(left + 18, top + 20, text=self.text("shop"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        for index, (item_key, item) in enumerate(ITEMS.items()):
+            y1 = top + 42 + index * 48
+            y2 = y1 + 38
+            self.shop_cards.append((item_key, left + 14, y1, WIDTH - 38, y2))
+            current_level = self.player.equipment[item_key]
+            cost = item["cost"] + current_level * 70
+            maxed = current_level >= item["max_stacks"]
+            fill = "#20282b" if not maxed else "#181d1f"
+            c.create_rectangle(left + 14, y1, WIDTH - 38, y2, fill=fill, outline=item["color"], width=2)
+            c.create_rectangle(left + 26, y1 + 9, left + 46, y1 + 29, fill=item["color"], outline="")
+            c.create_text(left + 58, y1 + 19, text=f"{index + 1}. {self.item_name(item_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
+            c.create_text(WIDTH - 118, y1 + 19, text=f"Lv {current_level}/{item['max_stacks']}", fill="#cfd6cd", anchor="e", font=("Segoe UI", 10))
+            price = "MAX" if maxed else f"G {cost}"
+            c.create_text(WIDTH - 50, y1 + 19, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 10, "bold"))
 
     def draw_skill(self, c, x, y, label, ready_at, full_cd):
         size = 44
