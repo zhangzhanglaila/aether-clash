@@ -101,6 +101,7 @@ L10N = {
         "bought": "Bought {item}",
         "shop": "SHOP",
         "level": "LV",
+        "enemy_prefix": "Enemy {name}",
         "hero_names": {
             "vanguard": "Vanguard",
             "ranger": "Star Ranger",
@@ -142,6 +143,7 @@ L10N = {
         "bought": "已购买 {item}",
         "shop": "商店",
         "level": "等级",
+        "enemy_prefix": "敌方{name}",
         "hero_names": {
             "vanguard": "铁卫",
             "ranger": "星弓",
@@ -1202,7 +1204,20 @@ class MobaGame:
             pts.extend([hero.x + math.cos(angle + spread) * length, hero.y + math.sin(angle + spread) * length])
         c.create_polygon(*pts, fill=color, outline=hero.accent, width=3)
         c.create_oval(hero.x - 10, hero.y - 10, hero.x + 10, hero.y + 10, fill="#1a2024", outline="")
-        self.draw_bar(c, hero.x - 32, hero.y - 36, 64, hero.hp, hero.max_hp, "#48d06b")
+        self.draw_hero_plate(c, hero)
+
+    def draw_hero_plate(self, c, hero):
+        display_name = self.hero_name(hero.hero_key)
+        if hero.team == "red":
+            display_name = self.text("enemy_prefix", name=display_name)
+        x = hero.x
+        y = hero.y - 58
+        c.create_rectangle(x - 54, y - 12, x + 54, y + 23, fill="#101416", outline="#2f383b")
+        c.create_oval(x - 58, y - 11, x - 34, y + 13, fill=hero.accent, outline="#f5f1d7", width=1)
+        c.create_text(x - 46, y + 1, text=str(hero.level), fill="#111719", font=("Segoe UI", 10, "bold"))
+        name_size = 8 if len(display_name) > 10 else 9
+        c.create_text(x - 28, y - 1, text=display_name, fill="#f5f1d7", anchor="w", font=("Segoe UI", name_size, "bold"))
+        self.draw_bar(c, x - 32, y + 14, 74, hero.hp, hero.max_hp, "#48d06b")
 
     def draw_ui(self, c):
         c.create_rectangle(0, 0, WIDTH, 46, fill="#111719", outline="")
