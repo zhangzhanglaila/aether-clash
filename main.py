@@ -341,6 +341,7 @@ class MobaGame:
         self.match_over = False
         self.winner = None
         self.spawn_timer = 0
+        self.match_time = 0
         self.message_until = 0
         self.message = ""
         self.player = self.make_hero(hero_key, "blue", 130, 580)
@@ -543,6 +544,7 @@ class MobaGame:
         self.root.after(FPS_MS, self.loop)
 
     def update(self, dt):
+        self.match_time += dt
         self.spawn_timer -= dt
         if self.spawn_timer <= 0:
             self.spawn_wave()
@@ -1044,6 +1046,7 @@ class MobaGame:
 
     def draw_language(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#14191c", outline="")
+        self.draw_menu_backdrop(c)
         c.create_rectangle(0, 0, WIDTH, 118, fill="#0f1416", outline="")
         c.create_text(WIDTH // 2, 42, text="LANGUAGE / 语言", fill="#f5f1d7", font=("Segoe UI", 30, "bold"))
         c.create_text(WIDTH // 2, 78, text="Python MOBA Prototype", fill="#9ea898", font=("Segoe UI", 13))
@@ -1069,6 +1072,7 @@ class MobaGame:
 
     def draw_select(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#151b1d", outline="")
+        self.draw_menu_backdrop(c)
         c.create_rectangle(0, 0, WIDTH, 95, fill="#101416", outline="")
         c.create_text(
             WIDTH // 2,
@@ -1117,6 +1121,21 @@ class MobaGame:
 
         c.create_rectangle(358, 590, 742, 636, fill="#101416", outline="#394043")
         c.create_text(WIDTH // 2, 613, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+
+    def draw_menu_backdrop(self, c):
+        for path in self.paths.values():
+            points = []
+            for x, y in path:
+                points.extend([x, y])
+            c.create_line(*points, fill="#263139", width=62, capstyle=tk.ROUND, joinstyle=tk.ROUND)
+            c.create_line(*points, fill="#3f4b4e", width=28, capstyle=tk.ROUND, joinstyle=tk.ROUND)
+        c.create_oval(-90, HEIGHT - 160, 230, HEIGHT + 160, fill="#203f5f", outline="")
+        c.create_oval(WIDTH - 230, -160, WIDTH + 90, 160, fill="#5b2428", outline="")
+        for i in range(18):
+            random.seed(100 + i)
+            x = random.randint(80, WIDTH - 80)
+            y = random.randint(130, HEIGHT - 80)
+            c.create_rectangle(x - 18, y - 2, x + 18, y + 2, fill="#2d3939", outline="")
 
     def draw_hero_portrait(self, c, x, y, config):
         accent = config["accent"]
@@ -1220,21 +1239,25 @@ class MobaGame:
         self.draw_bar(c, x - 32, y + 14, 74, hero.hp, hero.max_hp, "#48d06b")
 
     def draw_ui(self, c):
-        c.create_rectangle(0, 0, WIDTH, 46, fill="#111719", outline="")
-        c.create_text(24, 23, text=self.hero_name(self.player.hero_key), fill="#78a3ff", anchor="w", font=("Segoe UI", 13, "bold"))
-        c.create_text(164, 23, text=f"{self.text('level')} {self.player.level}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
-        c.create_text(248, 23, text=f"K {self.player.kills}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
-        c.create_text(318, 23, text=f"G {self.player.gold}", fill="#f7d765", anchor="w", font=("Segoe UI", 13))
+        c.create_rectangle(0, 0, WIDTH, 50, fill="#0d1215", outline="")
+        c.create_rectangle(398, 7, 702, 43, fill="#151b1e", outline="#394043", width=2)
+        c.create_text(438, 25, text=str(self.player.kills), fill="#78a3ff", font=("Segoe UI", 16, "bold"))
+        c.create_text(WIDTH // 2, 25, text=self.format_time(self.match_time), fill="#f5f1d7", font=("Segoe UI", 14, "bold"))
+        c.create_text(662, 25, text=str(self.enemy_hero.kills), fill="#ff7b7c", font=("Segoe UI", 16, "bold"))
+        c.create_text(24, 25, text=self.hero_name(self.player.hero_key), fill="#78a3ff", anchor="w", font=("Segoe UI", 13, "bold"))
+        c.create_text(164, 25, text=f"{self.text('level')} {self.player.level}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
+        c.create_text(260, 25, text=f"G {self.player.gold}", fill="#f7d765", anchor="w", font=("Segoe UI", 13))
         xp_pct = clamp(self.player.xp / self.player.next_xp, 0, 1)
-        c.create_rectangle(414, 17, 544, 29, fill="#252a2a", outline="")
-        c.create_rectangle(414, 17, 414 + 130 * xp_pct, 29, fill="#b38cff", outline="")
+        c.create_rectangle(24, 43, 300, 47, fill="#252a2a", outline="")
+        c.create_rectangle(24, 43, 24 + 276 * xp_pct, 47, fill="#b38cff", outline="")
         c.create_text(WIDTH - 24, 23, text=self.text("red"), fill="#ff7b7c", anchor="e", font=("Segoe UI", 13, "bold"))
-        c.create_text(WIDTH - 120, 23, text=f"K {self.enemy_hero.kills}", fill="#f5f1d7", anchor="e", font=("Segoe UI", 13))
 
-        self.draw_skill(c, WIDTH // 2 - 102, HEIGHT - 58, "Q", self.player.cooldowns["q"], self.player.skill_cds["q"])
-        self.draw_skill(c, WIDTH // 2 - 34, HEIGHT - 58, "E", self.player.cooldowns["e"], self.player.skill_cds["e"])
-        self.draw_skill(c, WIDTH // 2 + 34, HEIGHT - 58, "R", self.player.cooldowns["r"], self.player.skill_cds["r"])
-        self.draw_skill(c, WIDTH // 2 + 102, HEIGHT - 58, "A", self.player.next_attack, self.player.attack_cd)
+        self.draw_minimap(c)
+        self.draw_virtual_stick(c)
+        self.draw_skill(c, WIDTH - 112, HEIGHT - 92, "Q", self.player.cooldowns["q"], self.player.skill_cds["q"], 46)
+        self.draw_skill(c, WIDTH - 58, HEIGHT - 154, "E", self.player.cooldowns["e"], self.player.skill_cds["e"], 46)
+        self.draw_skill(c, WIDTH - 172, HEIGHT - 154, "R", self.player.cooldowns["r"], self.player.skill_cds["r"], 52)
+        self.draw_skill(c, WIDTH - 58, HEIGHT - 70, "A", self.player.next_attack, self.player.attack_cd, 42)
 
         if self.now() < self.message_until:
             c.create_text(WIDTH // 2, 78, text=self.message, fill="#f5f1d7", font=("Segoe UI", 18, "bold"))
@@ -1248,6 +1271,43 @@ class MobaGame:
             text = self.text("victory_blue") if self.winner == "blue" else self.text("victory_red")
             c.create_text(WIDTH // 2, 326, text=text, fill="#f5f1d7", font=("Segoe UI", 34, "bold"))
             c.create_text(WIDTH // 2, 382, text=self.text("exit"), fill="#cfc8ac", font=("Segoe UI", 14))
+
+    def format_time(self, seconds):
+        total = int(seconds)
+        return f"{total // 60:02d}:{total % 60:02d}"
+
+    def draw_virtual_stick(self, c):
+        x, y = 92, HEIGHT - 92
+        c.create_oval(x - 62, y - 62, x + 62, y + 62, fill="#0d1215", outline="#394043", width=2)
+        c.create_oval(x - 28, y - 28, x + 28, y + 28, fill="#1f2a2e", outline="#d8cf9b", width=2)
+        c.create_line(x - 50, y, x + 50, y, fill="#394043", width=2)
+        c.create_line(x, y - 50, x, y + 50, fill="#394043", width=2)
+
+    def draw_minimap(self, c):
+        left, top = 18, 64
+        w, h = 178, 122
+        c.create_rectangle(left, top, left + w, top + h, fill="#0d1215", outline="#d8cf9b", width=2)
+        for path in self.paths.values():
+            points = []
+            for x, y in path:
+                points.extend([left + x / WIDTH * w, top + y / HEIGHT * h])
+            c.create_line(*points, fill="#8d8b73", width=4, capstyle=tk.ROUND, joinstyle=tk.ROUND)
+        for tower in self.towers:
+            if tower.alive:
+                self.draw_minimap_dot(c, left, top, w, h, tower.x, tower.y, team_color(tower.team), 3)
+        for minion in self.minions[::2]:
+            self.draw_minimap_dot(c, left, top, w, h, minion.x, minion.y, team_color(minion.team), 2)
+        self.draw_minimap_dot(c, left, top, w, h, self.blue_core.x, self.blue_core.y, "#78a3ff", 5)
+        self.draw_minimap_dot(c, left, top, w, h, self.red_core.x, self.red_core.y, "#ff7b7c", 5)
+        if self.player.alive:
+            self.draw_minimap_dot(c, left, top, w, h, self.player.x, self.player.y, "#ffffff", 4)
+        if self.enemy_hero.alive:
+            self.draw_minimap_dot(c, left, top, w, h, self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", 4)
+
+    def draw_minimap_dot(self, c, left, top, w, h, x, y, color, r):
+        mx = left + x / WIDTH * w
+        my = top + y / HEIGHT * h
+        c.create_oval(mx - r, my - r, mx + r, my + r, fill=color, outline="")
 
     def draw_shop(self, c):
         self.shop_cards = []
@@ -1270,25 +1330,28 @@ class MobaGame:
             price = "MAX" if maxed else f"G {cost}"
             c.create_text(WIDTH - 50, y1 + 19, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 10, "bold"))
 
-    def draw_skill(self, c, x, y, label, ready_at, full_cd):
-        size = 44
+    def draw_skill(self, c, x, y, label, ready_at, full_cd, size):
         current = self.now()
         ready = current >= ready_at
         fill = "#26313a" if ready else "#171b20"
-        c.create_rectangle(x - size // 2, y - size // 2, x + size // 2, y + size // 2, fill=fill, outline="#d8cf9b", width=2)
-        c.create_text(x, y, text=label, fill="#f5f1d7", font=("Segoe UI", 15, "bold"))
+        r = size // 2
+        c.create_oval(x - r - 4, y - r - 4, x + r + 4, y + r + 4, fill="#0d1215", outline="#394043", width=2)
+        c.create_oval(x - r, y - r, x + r, y + r, fill=fill, outline="#d8cf9b", width=2)
         if not ready:
             left = ready_at - current
             pct = clamp(left / full_cd, 0, 1)
-            c.create_rectangle(
-                x - size // 2,
-                y + size // 2 - size * pct,
-                x + size // 2,
-                y + size // 2,
+            c.create_arc(
+                x - r,
+                y - r,
+                x + r,
+                y + r,
+                start=90,
+                extent=-360 * pct,
                 fill="#000000",
-                stipple="gray50",
                 outline="",
             )
+        c.create_text(x, y, text=label, fill="#f5f1d7", font=("Segoe UI", 15, "bold"))
+        if not ready:
             c.create_text(x, y + 25, text=f"{left:.1f}", fill="#ffffff", font=("Segoe UI", 8, "bold"))
 
 
