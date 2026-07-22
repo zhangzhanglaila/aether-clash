@@ -84,6 +84,16 @@ L10N = {
     "en": {
         "language_title": "CHOOSE LANGUAGE",
         "language_subtitle": "Python MOBA Prototype",
+        "lobby_title": "AETHER ARENA",
+        "lobby_subtitle": "Original MOBA Prototype",
+        "start_match": "START MATCH",
+        "mode_rank": "Crystal Valley",
+        "mode_train": "Practice Grounds",
+        "mode_quick": "Quick Duel",
+        "season": "Season Trial",
+        "profile": "Commander",
+        "loading": "LOADING",
+        "versus": "VERSUS",
         "hero_title": "SELECT HERO",
         "choose_hero": "CHOOSE YOUR HERO",
         "blue": "BLUE",
@@ -126,6 +136,16 @@ L10N = {
     "zh": {
         "language_title": "选择语言",
         "language_subtitle": "Python 王者类 MOBA 原型",
+        "lobby_title": "星辉峡谷",
+        "lobby_subtitle": "原创王者类 MOBA 原型",
+        "start_match": "开始对战",
+        "mode_rank": "水晶峡谷",
+        "mode_train": "训练营",
+        "mode_quick": "快速对决",
+        "season": "赛季试炼",
+        "profile": "召唤师",
+        "loading": "加载中",
+        "versus": "对战",
         "hero_title": "选择英雄",
         "choose_hero": "选择你的英雄",
         "blue": "蓝方",
@@ -286,7 +306,9 @@ class MobaGame:
         self.language = "zh"
         self.state = "language"
         self.language_buttons = []
+        self.lobby_buttons = []
         self.hero_cards = []
+        self.loading_started_at = 0
         self.selected_hero_key = "vanguard"
         self.reset_match(self.selected_hero_key)
 
@@ -425,6 +447,16 @@ class MobaGame:
                 self.root.destroy()
             return
 
+        if self.state == "lobby":
+            if key in {"return", "space"}:
+                self.state = "select"
+            elif key == "escape":
+                self.root.destroy()
+            return
+
+        if self.state == "loading":
+            return
+
         if self.state == "select":
             if key in {"1", "2", "3"}:
                 hero_key = list(HEROES.keys())[int(key) - 1]
@@ -461,6 +493,11 @@ class MobaGame:
         if self.state == "language":
             self.select_language_at(self.mouse_x, self.mouse_y)
             return
+        if self.state == "lobby":
+            self.select_lobby_at(self.mouse_x, self.mouse_y)
+            return
+        if self.state == "loading":
+            return
         if self.state == "select":
             self.select_card_at(self.mouse_x, self.mouse_y)
             return
@@ -475,11 +512,12 @@ class MobaGame:
 
     def choose_language(self, language):
         self.language = language
-        self.state = "select"
+        self.state = "lobby"
 
     def choose_hero(self, hero_key):
         self.reset_match(hero_key)
-        self.state = "playing"
+        self.state = "loading"
+        self.loading_started_at = self.now()
         self.last_time = time.perf_counter()
         self.show_message(self.text("deployed", name=self.hero_name(hero_key)))
 
@@ -487,6 +525,13 @@ class MobaGame:
         for language, left, top, right, bottom in self.language_buttons:
             if left <= x <= right and top <= y <= bottom:
                 self.choose_language(language)
+                return
+
+    def select_lobby_at(self, x, y):
+        for action, left, top, right, bottom in self.lobby_buttons:
+            if left <= x <= right and top <= y <= bottom:
+                if action == "start":
+                    self.state = "select"
                 return
 
     def select_card_at(self, x, y):
@@ -538,6 +583,9 @@ class MobaGame:
         current = time.perf_counter()
         dt = min(0.05, current - self.last_time)
         self.last_time = current
+        if self.state == "loading" and current - self.loading_started_at >= 1.15:
+            self.state = "playing"
+            self.last_time = time.perf_counter()
         if self.state == "playing" and not self.match_over:
             self.update(dt)
         self.draw()
@@ -1009,8 +1057,14 @@ class MobaGame:
         if self.state == "language":
             self.draw_language(c)
             return
+        if self.state == "lobby":
+            self.draw_lobby(c)
+            return
         if self.state == "select":
             self.draw_select(c)
+            return
+        if self.state == "loading":
+            self.draw_loading(c)
             return
 
         self.draw_map(c)
@@ -1122,6 +1176,51 @@ class MobaGame:
         c.create_rectangle(358, 590, 742, 636, fill="#101416", outline="#394043")
         c.create_text(WIDTH // 2, 613, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
 
+    def draw_lobby(self, c):
+        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#12181b", outline="")
+        self.draw_menu_backdrop(c)
+        c.create_rectangle(0, 0, WIDTH, 82, fill="#0d1215", outline="")
+        c.create_text(34, 30, text=self.text("lobby_title"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 25, "bold"))
+        c.create_text(36, 58, text=self.text("lobby_subtitle"), fill="#aeb8ad", anchor="w", font=("Segoe UI", 11))
+        c.create_text(WIDTH - 34, 30, text=f"G {self.player.gold}", fill="#f7d765", anchor="e", font=("Segoe UI", 13, "bold"))
+        c.create_text(WIDTH - 34, 58, text=f"{self.text('level')} {self.player.level}", fill="#cfd6cd", anchor="e", font=("Segoe UI", 12))
+
+        c.create_rectangle(44, 122, 342, 254, fill="#20282b", outline="#d8cf9b", width=2)
+        c.create_text(72, 154, text=self.text("profile"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
+        c.create_text(72, 188, text=self.hero_name(self.selected_hero_key), fill="#78a3ff", anchor="w", font=("Segoe UI", 20, "bold"))
+        c.create_text(72, 222, text=self.text("season"), fill="#aeb8ad", anchor="w", font=("Segoe UI", 12))
+
+        modes = [
+            (404, 132, 666, 284, self.text("mode_rank"), "#78a3ff"),
+            (696, 132, 958, 284, self.text("mode_train"), "#76f4d1"),
+            (404, 318, 666, 470, self.text("mode_quick"), "#b38cff"),
+        ]
+        for left, top, right, bottom, title, color in modes:
+            c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=color, width=2)
+            c.create_rectangle(left, top, right, top + 38, fill="#151b1e", outline="")
+            c.create_text(left + 22, top + 20, text=title, fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
+            c.create_line(left + 24, bottom - 32, right - 24, top + 58, fill=color, width=5)
+            c.create_oval(right - 74, bottom - 78, right - 24, bottom - 28, fill=color, outline="")
+
+        self.lobby_buttons = [("start", 408, 548, 692, 616)]
+        c.create_rectangle(408, 548, 692, 616, fill="#d8cf9b", outline="#f5f1d7", width=3)
+        c.create_text(WIDTH // 2, 582, text=self.text("start_match"), fill="#101416", font=("Segoe UI", 21, "bold"))
+
+    def draw_loading(self, c):
+        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#101416", outline="")
+        self.draw_menu_backdrop(c)
+        progress = clamp((self.now() - self.loading_started_at) / 1.15, 0, 1)
+        c.create_text(WIDTH // 2, 86, text=self.text("loading"), fill="#f5f1d7", font=("Segoe UI", 26, "bold"))
+        c.create_rectangle(184, 154, 456, 514, fill="#20282b", outline=self.player.accent, width=3)
+        c.create_rectangle(644, 154, 916, 514, fill="#20282b", outline="#e84d4f", width=3)
+        self.draw_hero_portrait(c, 320, 300, HEROES[self.player.hero_key])
+        self.draw_hero_portrait(c, 780, 300, HEROES["vanguard"])
+        c.create_text(320, 430, text=self.hero_name(self.player.hero_key), fill="#f5f1d7", font=("Segoe UI", 20, "bold"))
+        c.create_text(780, 430, text=self.text("enemy_prefix", name=self.hero_name("vanguard")), fill="#f5f1d7", font=("Segoe UI", 20, "bold"))
+        c.create_text(WIDTH // 2, 320, text=self.text("versus"), fill="#d8cf9b", font=("Segoe UI", 28, "bold"))
+        c.create_rectangle(260, 590, 840, 606, fill="#252a2a", outline="")
+        c.create_rectangle(260, 590, 260 + 580 * progress, 606, fill="#d8cf9b", outline="")
+
     def draw_menu_backdrop(self, c):
         for path in self.paths.values():
             points = []
@@ -1132,9 +1231,9 @@ class MobaGame:
         c.create_oval(-90, HEIGHT - 160, 230, HEIGHT + 160, fill="#203f5f", outline="")
         c.create_oval(WIDTH - 230, -160, WIDTH + 90, 160, fill="#5b2428", outline="")
         for i in range(18):
-            random.seed(100 + i)
-            x = random.randint(80, WIDTH - 80)
-            y = random.randint(130, HEIGHT - 80)
+            rng = random.Random(100 + i)
+            x = rng.randint(80, WIDTH - 80)
+            y = rng.randint(130, HEIGHT - 80)
             c.create_rectangle(x - 18, y - 2, x + 18, y + 2, fill="#2d3939", outline="")
 
     def draw_hero_portrait(self, c, x, y, config):
@@ -1162,9 +1261,9 @@ class MobaGame:
             c.create_line(*points, fill="#c0b988", width=3, dash=(12, 14))
 
         for _ in range(28):
-            random.seed(_)
-            x = random.randint(40, WIDTH - 40)
-            y = random.randint(45, HEIGHT - 45)
+            rng = random.Random(_)
+            x = rng.randint(40, WIDTH - 40)
+            y = rng.randint(45, HEIGHT - 45)
             c.create_oval(x - 8, y - 5, x + 8, y + 5, fill="#203c2d", outline="")
 
         c.create_polygon(0, HEIGHT, 0, 505, 188, HEIGHT, fill="#203f5f", outline="")
