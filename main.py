@@ -33,6 +33,46 @@ def team_color(team):
     return "#3f7cff" if team == "blue" else "#e84d4f"
 
 
+HEROES = {
+    "vanguard": {
+        "name": "Vanguard",
+        "role": "Fighter",
+        "accent": "#ffe082",
+        "hp": 620,
+        "speed": 188,
+        "attack_damage": 34,
+        "attack_range": 225,
+        "attack_cd": 0.44,
+        "cooldowns": {"q": 3.6, "e": 5.5, "r": 13.5},
+        "skills": {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"},
+    },
+    "ranger": {
+        "name": "Star Ranger",
+        "role": "Marksman",
+        "accent": "#76f4d1",
+        "hp": 470,
+        "speed": 218,
+        "attack_damage": 25,
+        "attack_range": 285,
+        "attack_cd": 0.30,
+        "cooldowns": {"q": 2.8, "e": 4.8, "r": 11.0},
+        "skills": {"q": "Triple Shot", "e": "Quick Step", "r": "Arrow Storm"},
+    },
+    "arcanist": {
+        "name": "Storm Arcanist",
+        "role": "Mage",
+        "accent": "#b38cff",
+        "hp": 440,
+        "speed": 174,
+        "attack_damage": 23,
+        "attack_range": 260,
+        "attack_cd": 0.52,
+        "cooldowns": {"q": 3.2, "e": 6.2, "r": 14.0},
+        "skills": {"q": "Storm Orb", "e": "Arc Shield", "r": "Thunder Field"},
+    },
+}
+
+
 @dataclass
 class Unit:
     x: float
@@ -60,6 +100,11 @@ class Unit:
 @dataclass
 class Hero(Unit):
     name: str = "Hero"
+    hero_key: str = "vanguard"
+    role: str = "Fighter"
+    accent: str = "#ffe082"
+    skill_cds: dict = field(default_factory=lambda: {"q": 3.6, "e": 5.5, "r": 13.5})
+    skill_names: dict = field(default_factory=lambda: {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"})
     level: int = 1
     gold: int = 0
     kills: int = 0
@@ -140,39 +185,10 @@ class MobaGame:
             "bot": [(92, 608), (250, 565), (920, 565), (1010, 92)],
         }
 
-        self.player = Hero(
-            x=130,
-            y=580,
-            team="blue",
-            hp=560,
-            max_hp=560,
-            radius=18,
-            speed=190,
-            attack_damage=32,
-            attack_range=235,
-            attack_cd=0.42,
-            name="Vanguard",
-        )
-        self.enemy_hero = Hero(
-            x=965,
-            y=120,
-            team="red",
-            hp=520,
-            max_hp=520,
-            radius=18,
-            speed=165,
-            attack_damage=29,
-            attack_range=225,
-            attack_cd=0.55,
-            name="Warlord",
-        )
-
-        self.blue_core = Core(74, 626, "blue", 1200, 1200, 35, name="Blue Core")
-        self.red_core = Core(1026, 74, "red", 1200, 1200, 35, name="Red Core")
-        self.towers = self.make_towers()
-        self.minions = []
-        self.projectiles = []
-        self.effects = []
+        self.state = "select"
+        self.hero_cards = []
+        self.selected_hero_key = "vanguard"
+        self.reset_match(self.selected_hero_key)
 
         self.root.bind("<KeyPress>", self.on_key_press)
         self.root.bind("<KeyRelease>", self.on_key_release)
@@ -180,6 +196,44 @@ class MobaGame:
         self.root.bind("<Button-1>", self.on_left_click)
         self.root.bind("<Button-3>", self.on_right_click)
         self.root.focus_force()
+
+    def make_hero(self, hero_key, team, x, y):
+        config = HEROES[hero_key]
+        return Hero(
+            x=x,
+            y=y,
+            team=team,
+            hp=config["hp"],
+            max_hp=config["hp"],
+            radius=18,
+            speed=config["speed"],
+            attack_damage=config["attack_damage"],
+            attack_range=config["attack_range"],
+            attack_cd=config["attack_cd"],
+            name=config["name"],
+            hero_key=hero_key,
+            role=config["role"],
+            accent=config["accent"],
+            skill_cds=dict(config["cooldowns"]),
+            skill_names=dict(config["skills"]),
+        )
+
+    def reset_match(self, hero_key):
+        self.selected_hero_key = hero_key
+        self.match_over = False
+        self.winner = None
+        self.spawn_timer = 0
+        self.message_until = 0
+        self.message = ""
+        self.player = self.make_hero(hero_key, "blue", 130, 580)
+        self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
+        self.enemy_hero.name = "Red Vanguard"
+        self.blue_core = Core(74, 626, "blue", 1200, 1200, 35, name="Blue Core")
+        self.red_core = Core(1026, 74, "red", 1200, 1200, 35, name="Red Core")
+        self.towers = self.make_towers()
+        self.minions = []
+        self.projectiles = []
+        self.effects = []
 
     def make_towers(self):
         data = [
@@ -220,6 +274,14 @@ class MobaGame:
 
     def on_key_press(self, event):
         key = event.keysym.lower()
+        if self.state == "select":
+            if key in {"1", "2", "3"}:
+                hero_key = list(HEROES.keys())[int(key) - 1]
+                self.choose_hero(hero_key)
+            elif key == "escape":
+                self.root.destroy()
+            return
+
         self.keys.add(key)
         if key == "q":
             self.cast_q(self.player)
@@ -239,17 +301,36 @@ class MobaGame:
         self.mouse_x = event.x
         self.mouse_y = event.y
 
-    def on_left_click(self, _event):
+    def on_left_click(self, event):
+        self.mouse_x = event.x
+        self.mouse_y = event.y
+        if self.state == "select":
+            self.select_card_at(self.mouse_x, self.mouse_y)
+            return
         self.hero_attack(self.player)
 
     def on_right_click(self, _event):
+        if self.state == "select":
+            return
         self.cast_e(self.player)
+
+    def choose_hero(self, hero_key):
+        self.reset_match(hero_key)
+        self.state = "playing"
+        self.last_time = time.perf_counter()
+        self.show_message(f"{self.player.name} deployed")
+
+    def select_card_at(self, x, y):
+        for hero_key, left, top, right, bottom in self.hero_cards:
+            if left <= x <= right and top <= y <= bottom:
+                self.choose_hero(hero_key)
+                return
 
     def loop(self):
         current = time.perf_counter()
         dt = min(0.05, current - self.last_time)
         self.last_time = current
-        if not self.match_over:
+        if self.state == "playing" and not self.match_over:
             self.update(dt)
         self.draw()
         self.root.after(FPS_MS, self.loop)
@@ -522,51 +603,129 @@ class MobaGame:
             return
         self.unit_attack(hero, target)
 
-    def cast_q(self, hero):
+    def skill_ready(self, hero, key):
         current = self.now()
-        if not hero.alive or current < hero.cooldowns["q"]:
-            return
-        hero.cooldowns["q"] = current + 3.6
+        if not hero.alive or current < hero.cooldowns[key]:
+            return False
+        hero.cooldowns[key] = current + hero.skill_cds[key]
+        return True
+
+    def aim_vector(self, hero):
         vx, vy = norm(self.mouse_x - hero.x, self.mouse_y - hero.y)
         if vx == 0 and vy == 0:
-            vx = 1
-        self.projectiles.append(
-            Projectile(
-                hero.x,
-                hero.y,
-                hero.team,
-                76,
-                420,
-                vx=vx,
-                vy=vy,
-                radius=11,
-                pierce=True,
-                ttl=0.95,
-                color="#76f4d1",
+            return 1, 0
+        return vx, vy
+
+    def damage_area(self, team, x, y, radius, amount, include_cores=False):
+        for target in self.enemies_of(team, include_cores=include_cores):
+            if target.alive and dist_xy(x, y, target.x, target.y) <= radius + target.radius:
+                self.apply_damage(target, amount, team)
+
+    def cast_q(self, hero):
+        if not self.skill_ready(hero, "q"):
+            return
+        vx, vy = self.aim_vector(hero)
+        if hero.hero_key == "ranger":
+            angle = math.atan2(vy, vx)
+            for offset in (-0.18, 0, 0.18):
+                ax = math.cos(angle + offset)
+                ay = math.sin(angle + offset)
+                self.projectiles.append(
+                    Projectile(
+                        hero.x,
+                        hero.y,
+                        hero.team,
+                        46,
+                        520,
+                        vx=ax,
+                        vy=ay,
+                        radius=7,
+                        pierce=False,
+                        ttl=0.9,
+                        color=hero.accent,
+                    )
+                )
+            return
+
+        if hero.hero_key == "arcanist":
+            self.projectiles.append(
+                Projectile(
+                    hero.x,
+                    hero.y,
+                    hero.team,
+                    96,
+                    360,
+                    vx=vx,
+                    vy=vy,
+                    radius=15,
+                    pierce=True,
+                    ttl=1.05,
+                    color=hero.accent,
+                )
             )
+            return
+
+        self.projectiles.append(
+            Projectile(hero.x, hero.y, hero.team, 82, 430, vx=vx, vy=vy, radius=11, pierce=True, ttl=0.95, color=hero.accent)
         )
 
     def cast_e(self, hero):
-        current = self.now()
-        if not hero.alive or current < hero.cooldowns["e"]:
+        if not self.skill_ready(hero, "e"):
             return
-        hero.cooldowns["e"] = current + 5.5
-        vx, vy = norm(self.mouse_x - hero.x, self.mouse_y - hero.y)
-        hero.x = clamp(hero.x + vx * 115, 35, WIDTH - 35)
-        hero.y = clamp(hero.y + vy * 115, 35, HEIGHT - 35)
-        self.effects.append(Effect(hero.x, hero.y, 8, 45, "#ffe082", 0.28, 0.28))
+        vx, vy = self.aim_vector(hero)
+        if hero.hero_key == "arcanist":
+            hero.hp = min(hero.max_hp, hero.hp + 95)
+            self.damage_area(hero.team, hero.x, hero.y, 82, 54)
+            self.effects.append(Effect(hero.x, hero.y, 12, 88, hero.accent, 0.34, 0.34))
+            return
+
+        distance = 168 if hero.hero_key == "ranger" else 120
+        hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
+        hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
+        if hero.hero_key == "ranger":
+            hero.next_attack = 0
+            self.effects.append(Effect(hero.x, hero.y, 8, 42, hero.accent, 0.22, 0.22))
+        else:
+            self.damage_area(hero.team, hero.x, hero.y, 52, 42)
+            self.effects.append(Effect(hero.x, hero.y, 8, 48, hero.accent, 0.28, 0.28))
 
     def cast_r(self, hero):
-        current = self.now()
-        if not hero.alive or current < hero.cooldowns["r"]:
+        if not hero.alive:
             return
         if dist_xy(hero.x, hero.y, self.mouse_x, self.mouse_y) > 340:
             return
-        hero.cooldowns["r"] = current + 13.5
-        self.effects.append(Effect(self.mouse_x, self.mouse_y, 10, 105, "#b38cff", 0.45, 0.45))
-        for target in self.enemies_of(hero.team, include_cores=False):
-            if target.alive and dist_xy(self.mouse_x, self.mouse_y, target.x, target.y) < 95:
-                self.apply_damage(target, 138, hero.team)
+        if not self.skill_ready(hero, "r"):
+            return
+
+        if hero.hero_key == "ranger":
+            vx, vy = self.aim_vector(hero)
+            angle = math.atan2(vy, vx)
+            for offset in (-0.52, -0.39, -0.26, -0.13, 0, 0.13, 0.26, 0.39, 0.52):
+                self.projectiles.append(
+                    Projectile(
+                        hero.x,
+                        hero.y,
+                        hero.team,
+                        42,
+                        500,
+                        vx=math.cos(angle + offset),
+                        vy=math.sin(angle + offset),
+                        radius=8,
+                        pierce=True,
+                        ttl=1.05,
+                        color=hero.accent,
+                    )
+                )
+            self.effects.append(Effect(hero.x, hero.y, 10, 76, hero.accent, 0.28, 0.28))
+            return
+
+        if hero.hero_key == "arcanist":
+            self.effects.append(Effect(self.mouse_x, self.mouse_y, 14, 130, hero.accent, 0.55, 0.55))
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, 176)
+            return
+
+        self.effects.append(Effect(self.mouse_x, self.mouse_y, 10, 106, hero.accent, 0.45, 0.45))
+        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, 148)
 
     def cast_ai_bolt(self, hero, target):
         hero.cooldowns["q"] = self.now() + 4.2
@@ -601,6 +760,10 @@ class MobaGame:
     def draw(self):
         c = self.canvas
         c.delete("all")
+        if self.state == "select":
+            self.draw_select(c)
+            return
+
         self.draw_map(c)
         for core in [self.blue_core, self.red_core]:
             self.draw_core(c, core)
@@ -631,6 +794,71 @@ class MobaGame:
                 width=alpha_width,
             )
         self.draw_ui(c)
+
+    def draw_select(self, c):
+        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#151b1d", outline="")
+        c.create_rectangle(0, 0, WIDTH, 95, fill="#101416", outline="")
+        c.create_text(
+            WIDTH // 2,
+            38,
+            text="SELECT HERO",
+            fill="#f5f1d7",
+            font=("Segoe UI", 28, "bold"),
+        )
+        c.create_text(
+            WIDTH // 2,
+            72,
+            text="Python MOBA Prototype",
+            fill="#9ea898",
+            font=("Segoe UI", 13),
+        )
+
+        self.hero_cards = []
+        card_w = 286
+        card_h = 390
+        gap = 34
+        start_x = (WIDTH - card_w * 3 - gap * 2) // 2
+        top = 148
+        for index, (hero_key, config) in enumerate(HEROES.items()):
+            left = start_x + index * (card_w + gap)
+            right = left + card_w
+            bottom = top + card_h
+            self.hero_cards.append((hero_key, left, top, right, bottom))
+            active = left <= self.mouse_x <= right and top <= self.mouse_y <= bottom
+            outline = config["accent"] if active else "#394043"
+            c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=outline, width=3)
+            c.create_rectangle(left, top, right, top + 76, fill="#161c1f", outline="")
+            c.create_text(left + 24, top + 26, text=config["name"], fill="#f5f1d7", anchor="w", font=("Segoe UI", 18, "bold"))
+            c.create_text(left + 24, top + 54, text=config["role"], fill=config["accent"], anchor="w", font=("Segoe UI", 12, "bold"))
+            self.draw_hero_portrait(c, left + card_w // 2, top + 137, config)
+
+            stat_y = top + 215
+            self.draw_stat(c, left + 26, stat_y, "HP", config["hp"], 700, "#48d06b")
+            self.draw_stat(c, left + 26, stat_y + 38, "SPD", config["speed"], 240, "#76b7ff")
+            self.draw_stat(c, left + 26, stat_y + 76, "ATK", config["attack_damage"], 42, "#f7d765")
+            c.create_text(left + 26, top + 336, text="Q", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
+            c.create_text(left + 54, top + 336, text=config["skills"]["q"], fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+            c.create_text(left + 26, top + 362, text="E", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
+            c.create_text(left + 54, top + 362, text=config["skills"]["e"], fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+            c.create_text(left + 26, top + 388, text="R", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
+            c.create_text(left + 54, top + 388, text=config["skills"]["r"], fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+
+        c.create_rectangle(358, 590, 742, 636, fill="#101416", outline="#394043")
+        c.create_text(WIDTH // 2, 613, text="CHOOSE YOUR HERO", fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+
+    def draw_hero_portrait(self, c, x, y, config):
+        accent = config["accent"]
+        c.create_oval(x - 54, y - 54, x + 54, y + 54, fill="#14191c", outline=accent, width=4)
+        c.create_polygon(x, y - 48, x - 45, y + 38, x + 45, y + 38, fill=accent, outline="#f5f1d7", width=2)
+        c.create_oval(x - 24, y - 20, x + 24, y + 28, fill="#1f282c", outline="")
+        c.create_line(x - 62, y + 68, x + 62, y + 68, fill=accent, width=3)
+
+    def draw_stat(self, c, x, y, label, value, max_value, color):
+        c.create_text(x, y, text=label, fill="#f5f1d7", anchor="w", font=("Segoe UI", 10, "bold"))
+        c.create_rectangle(x + 48, y - 6, x + 224, y + 6, fill="#151b1d", outline="")
+        pct = clamp(value / max_value, 0, 1)
+        c.create_rectangle(x + 48, y - 6, x + 48 + 176 * pct, y + 6, fill=color, outline="")
+        c.create_text(x + 234, y, text=str(int(value)), fill="#cfd6cd", anchor="w", font=("Segoe UI", 10))
 
     def draw_map(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#17291f", outline="")
@@ -702,21 +930,21 @@ class MobaGame:
         for i, spread in enumerate([0, 2.35, -2.35]):
             length = 25 if i == 0 else 18
             pts.extend([hero.x + math.cos(angle + spread) * length, hero.y + math.sin(angle + spread) * length])
-        c.create_polygon(*pts, fill=color, outline="#f8f2da", width=2)
+        c.create_polygon(*pts, fill=color, outline=hero.accent, width=3)
         c.create_oval(hero.x - 10, hero.y - 10, hero.x + 10, hero.y + 10, fill="#1a2024", outline="")
         self.draw_bar(c, hero.x - 32, hero.y - 36, 64, hero.hp, hero.max_hp, "#48d06b")
 
     def draw_ui(self, c):
         c.create_rectangle(0, 0, WIDTH, 46, fill="#111719", outline="")
-        c.create_text(24, 23, text="BLUE", fill="#78a3ff", anchor="w", font=("Segoe UI", 13, "bold"))
-        c.create_text(120, 23, text=f"K {self.player.kills}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
-        c.create_text(190, 23, text=f"G {self.player.gold}", fill="#f7d765", anchor="w", font=("Segoe UI", 13))
+        c.create_text(24, 23, text=self.player.name.upper(), fill="#78a3ff", anchor="w", font=("Segoe UI", 13, "bold"))
+        c.create_text(190, 23, text=f"K {self.player.kills}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
+        c.create_text(260, 23, text=f"G {self.player.gold}", fill="#f7d765", anchor="w", font=("Segoe UI", 13))
         c.create_text(WIDTH - 24, 23, text="RED", fill="#ff7b7c", anchor="e", font=("Segoe UI", 13, "bold"))
         c.create_text(WIDTH - 120, 23, text=f"K {self.enemy_hero.kills}", fill="#f5f1d7", anchor="e", font=("Segoe UI", 13))
 
-        self.draw_skill(c, WIDTH // 2 - 102, HEIGHT - 58, "Q", self.player.cooldowns["q"], 3.6)
-        self.draw_skill(c, WIDTH // 2 - 34, HEIGHT - 58, "E", self.player.cooldowns["e"], 5.5)
-        self.draw_skill(c, WIDTH // 2 + 34, HEIGHT - 58, "R", self.player.cooldowns["r"], 13.5)
+        self.draw_skill(c, WIDTH // 2 - 102, HEIGHT - 58, "Q", self.player.cooldowns["q"], self.player.skill_cds["q"])
+        self.draw_skill(c, WIDTH // 2 - 34, HEIGHT - 58, "E", self.player.cooldowns["e"], self.player.skill_cds["e"])
+        self.draw_skill(c, WIDTH // 2 + 34, HEIGHT - 58, "R", self.player.cooldowns["r"], self.player.skill_cds["r"])
         self.draw_skill(c, WIDTH // 2 + 102, HEIGHT - 58, "A", self.player.next_attack, self.player.attack_cd)
 
         if self.now() < self.message_until:
