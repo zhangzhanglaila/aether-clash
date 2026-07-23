@@ -322,3 +322,16 @@ class Effect:
     color: str
     ttl: float
     max_ttl: float
+
+
+@dataclass
+class Particle:
+    x: float
+    y: float
+    vx: float
+    vy: float
+    color: str
+    ttl: float
+    max_ttl: float
+    radius: float = 3
+    shrink: bool = True

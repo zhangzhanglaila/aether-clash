@@ -13,6 +13,7 @@ from game_data import (
     L10N,
     MODE_RULES,
     Minion,
+    Particle,
     Projectile,
     Tower,
     WIDTH,
@@ -71,6 +72,7 @@ class MobaGame:
         self.minions = []
         self.projectiles = []
         self.effects = []
+        self.particles = []
 
         self.root.bind("<KeyPress>", self.on_key_press)
         self.root.bind("<KeyRelease>", self.on_key_release)
@@ -165,6 +167,7 @@ class MobaGame:
         self.minions = []
         self.projectiles = []
         self.effects = []
+        self.particles = []
         self.shop_cards = []
 
     def apply_starting_level(self, hero, level):
@@ -557,7 +560,7 @@ class MobaGame:
                 p.y += ny * p.speed * dt
                 if dist_xy(p.x, p.y, p.target.x, p.target.y) <= p.radius + p.target.radius:
                     self.apply_damage(p.target, p.damage, p.team)
-                    self.effects.append(Effect(p.x, p.y, 4, 28, p.color, 0.22, 0.22))
+                    self.spawn_hit_fx(p.x, p.y, p.color)
                     continue
             else:
                 p.x += p.vx * p.speed * dt
@@ -566,7 +569,7 @@ class MobaGame:
                 for target in self.enemies_of(p.team, include_cores=True):
                     if target.alive and dist_xy(p.x, p.y, target.x, target.y) <= p.radius + target.radius:
                         self.apply_damage(target, p.damage, p.team)
-                        self.effects.append(Effect(p.x, p.y, 6, 34, p.color, 0.24, 0.24))
+                        self.spawn_hit_fx(p.x, p.y, p.color)
                         hit = not p.pierce
                         if hit:
                             break
@@ -585,6 +588,17 @@ class MobaGame:
             if e.ttl > 0:
                 kept.append(e)
         self.effects = kept
+
+        next_particles = []
+        for p in self.particles:
+            p.ttl -= dt
+            p.x += p.vx * dt
+            p.y += p.vy * dt
+            p.vx *= 0.94
+            p.vy *= 0.94
+            if p.ttl > 0:
+                next_particles.append(p)
+        self.particles = next_particles
 
     def cleanup_dead(self):
         self.minions = [m for m in self.minions if m.alive]
@@ -655,6 +669,7 @@ class MobaGame:
             return
         unit.next_attack = current + unit.attack_cd
         color = "#8fd3ff" if unit.team == "blue" else "#ff9a91"
+        self.spawn_particles(unit.x, unit.y, color, count=6, speed=70, spread=0.5, radius=2.1, ttl=0.18)
         self.projectiles.append(
             Projectile(
                 unit.x,
@@ -700,10 +715,46 @@ class MobaGame:
         attack_bonus = max(0, hero.attack_damage - base_attack)
         return base * multiplier + (hero.level - 1) * 8 * multiplier + attack_bonus * 0.45 * multiplier
 
+    def spawn_particles(self, x, y, color, count=10, speed=120, spread=1.0, radius=3, ttl=0.45):
+        for _ in range(count):
+            angle = random.random() * math.tau
+            magnitude = speed * (0.35 + random.random() * 0.65) * spread
+            self.particles.append(
+                Particle(
+                    x=x,
+                    y=y,
+                    vx=math.cos(angle) * magnitude,
+                    vy=math.sin(angle) * magnitude,
+                    color=color,
+                    ttl=ttl * (0.65 + random.random() * 0.7),
+                    max_ttl=ttl,
+                    radius=radius * (0.7 + random.random() * 0.8),
+                )
+            )
+
+    def spawn_ring(self, x, y, color, base_radius=18, ttl=0.32):
+        self.effects.append(Effect(x, y, 4, base_radius, color, ttl, ttl))
+
+    def spawn_hit_fx(self, x, y, color, big=False):
+        self.spawn_particles(x, y, color, count=18 if big else 9, speed=160 if big else 100, spread=1.2 if big else 0.8, radius=3.6 if big else 2.6, ttl=0.42 if big else 0.28)
+        self.spawn_ring(x, y, color, base_radius=44 if big else 24, ttl=0.28 if big else 0.18)
+
+    def spawn_cast_fx(self, hero, skill_key):
+        if skill_key == "q":
+            self.spawn_particles(hero.x, hero.y, hero.accent, count=8, speed=80, spread=0.7, radius=2.4, ttl=0.22)
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=28, ttl=0.18)
+        elif skill_key == "e":
+            self.spawn_particles(hero.x, hero.y, hero.accent, count=14, speed=110, spread=1.0, radius=2.8, ttl=0.28)
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=36, ttl=0.22)
+        else:
+            self.spawn_particles(hero.x, hero.y, hero.accent, count=24, speed=170, spread=1.3, radius=3.2, ttl=0.38)
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=58, ttl=0.32)
+
     def cast_q(self, hero):
         if not self.skill_ready(hero, "q"):
             return
         vx, vy = self.aim_vector(hero)
+        self.spawn_cast_fx(hero, "q")
         if hero.hero_key == "ranger":
             angle = math.atan2(vy, vx)
             for offset in (-0.18, 0, 0.18):
@@ -752,10 +803,11 @@ class MobaGame:
         if not self.skill_ready(hero, "e"):
             return
         vx, vy = self.aim_vector(hero)
+        self.spawn_cast_fx(hero, "e")
         if hero.hero_key == "arcanist":
             hero.hp = min(hero.max_hp, hero.hp + 95)
             self.damage_area(hero.team, hero.x, hero.y, 82, self.skill_damage(hero, 54))
-            self.effects.append(Effect(hero.x, hero.y, 12, 88, hero.accent, 0.34, 0.34))
+            self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
             return
 
         distance = 168 if hero.hero_key == "ranger" else 120
@@ -763,10 +815,10 @@ class MobaGame:
         hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
         if hero.hero_key == "ranger":
             hero.next_attack = 0
-            self.effects.append(Effect(hero.x, hero.y, 8, 42, hero.accent, 0.22, 0.22))
+            self.spawn_hit_fx(hero.x, hero.y, hero.accent)
         else:
             self.damage_area(hero.team, hero.x, hero.y, 52, self.skill_damage(hero, 42))
-            self.effects.append(Effect(hero.x, hero.y, 8, 48, hero.accent, 0.28, 0.28))
+            self.spawn_hit_fx(hero.x, hero.y, hero.accent)
 
     def cast_r(self, hero):
         if not hero.alive:
@@ -775,6 +827,7 @@ class MobaGame:
             return
         if not self.skill_ready(hero, "r"):
             return
+        self.spawn_cast_fx(hero, "r")
 
         if hero.hero_key == "ranger":
             vx, vy = self.aim_vector(hero)
@@ -795,15 +848,17 @@ class MobaGame:
                         color=hero.accent,
                     )
                 )
-            self.effects.append(Effect(hero.x, hero.y, 10, 76, hero.accent, 0.28, 0.28))
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=84, ttl=0.28)
             return
 
         if hero.hero_key == "arcanist":
-            self.effects.append(Effect(self.mouse_x, self.mouse_y, 14, 130, hero.accent, 0.55, 0.55))
+            self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=130, ttl=0.55)
+            self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=28, speed=210, spread=1.4, radius=3.2, ttl=0.42)
             self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176, 1.45), include_cores=True)
             return
 
-        self.effects.append(Effect(self.mouse_x, self.mouse_y, 10, 112, hero.accent, 0.48, 0.48))
+        self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=112, ttl=0.48)
+        self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=20, speed=190, spread=1.25, radius=3.0, ttl=0.36)
         self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 148, 1.45), include_cores=True)
 
     def cast_ai_bolt(self, hero, target):
@@ -850,6 +905,8 @@ class MobaGame:
         hero.hp = min(hero.max_hp, hero.hp + 48)
         hero.attack_damage += 4
         hero.attack_range += 3
+        self.spawn_particles(hero.x, hero.y, hero.accent, count=22, speed=170, spread=1.1, radius=3.0, ttl=0.42)
+        self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=62, ttl=0.32)
         if not silent and hero.team == "blue":
             self.show_message(self.text("level_up", name=self.hero_name(hero.hero_key), level=hero.level))
 
@@ -863,8 +920,12 @@ class MobaGame:
                 self.reward_player(target)
             if isinstance(target, Tower):
                 self.show_message(self.text("destroyed", name=target.name))
+                self.spawn_particles(target.x, target.y, "#f7d765", count=22, speed=150, spread=1.3, radius=3.4, ttl=0.42)
+                self.spawn_ring(target.x, target.y, "#f7d765", base_radius=76, ttl=0.34)
             elif isinstance(target, Core):
                 self.show_message(self.text("destroyed", name=target.name))
+                self.spawn_particles(target.x, target.y, "#f7d765", count=32, speed=190, spread=1.6, radius=3.8, ttl=0.56)
+                self.spawn_ring(target.x, target.y, "#f7d765", base_radius=120, ttl=0.48)
 
     def draw(self):
         c = self.canvas
@@ -910,6 +971,17 @@ class MobaGame:
                 e.y + e.radius,
                 outline=e.color,
                 width=alpha_width,
+            )
+        for p in self.particles:
+            alpha = max(1, int(255 * (p.ttl / p.max_ttl)))
+            size = p.radius * (0.7 if p.shrink else 1)
+            c.create_oval(
+                p.x - size,
+                p.y - size,
+                p.x + size,
+                p.y + size,
+                fill=p.color,
+                outline="",
             )
         self.draw_ui(c)
 
@@ -1159,6 +1231,7 @@ class MobaGame:
         x = hero.x
         y = hero.y - 58
         c.create_rectangle(x - 54, y - 12, x + 54, y + 23, fill="#101416", outline="#2f383b")
+        c.create_oval(x - 61, y - 14, x - 31, y + 16, outline=hero.accent, width=2)
         c.create_oval(x - 58, y - 11, x - 34, y + 13, fill=hero.accent, outline="#f5f1d7", width=1)
         c.create_text(x - 46, y + 1, text=str(hero.level), fill="#111719", font=("Segoe UI", 10, "bold"))
         name_size = 8 if len(display_name) > 10 else 9
