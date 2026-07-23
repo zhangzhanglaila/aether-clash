@@ -77,6 +77,43 @@ ITEMS = {
 }
 
 
+MODE_RULES = {
+    "rank": {
+        "spawn_interval": 7.0,
+        "gold_mult": 1.0,
+        "xp_mult": 1.0,
+        "enemy_xp_rate": 10,
+        "tower_hp_mult": 1.0,
+        "core_hp_mult": 1.0,
+        "enemy_stat_mult": 1.0,
+        "start_level": 1,
+        "start_gold": 0,
+    },
+    "train": {
+        "spawn_interval": 8.0,
+        "gold_mult": 1.35,
+        "xp_mult": 1.25,
+        "enemy_xp_rate": 6,
+        "tower_hp_mult": 0.85,
+        "core_hp_mult": 0.85,
+        "enemy_stat_mult": 0.82,
+        "start_level": 2,
+        "start_gold": 220,
+    },
+    "quick": {
+        "spawn_interval": 4.4,
+        "gold_mult": 1.75,
+        "xp_mult": 1.8,
+        "enemy_xp_rate": 18,
+        "tower_hp_mult": 0.72,
+        "core_hp_mult": 0.72,
+        "enemy_stat_mult": 1.08,
+        "start_level": 3,
+        "start_gold": 260,
+    },
+}
+
+
 L10N = {
     "en": {
         "language_title": "CHOOSE LANGUAGE",
@@ -87,6 +124,11 @@ L10N = {
         "mode_rank": "Crystal Valley",
         "mode_train": "Practice Grounds",
         "mode_quick": "Quick Duel",
+        "mode_desc": {
+            "rank": "Standard pace, balanced towers and AI.",
+            "train": "Easier AI, starting gold and slower waves.",
+            "quick": "Fast waves, faster growth and weaker structures.",
+        },
         "mode_prompt": "Choose a mode before selecting a hero",
         "hero_unselected": "Hero not selected",
         "mode_unselected": "Mode not selected",
@@ -142,6 +184,11 @@ L10N = {
         "mode_rank": "水晶峡谷",
         "mode_train": "训练营",
         "mode_quick": "快速对决",
+        "mode_desc": {
+            "rank": "标准节奏，防御塔和 AI 强度均衡。",
+            "train": "AI 更弱，开局金币更多，兵线更慢。",
+            "quick": "兵线更快，成长更快，建筑更脆。",
+        },
         "mode_prompt": "请先选择对战模式，再选择英雄",
         "hero_unselected": "英雄未选择",
         "mode_unselected": "模式未选择",

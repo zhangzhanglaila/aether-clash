@@ -11,6 +11,7 @@ from game_data import (
     Hero,
     ITEMS,
     L10N,
+    MODE_RULES,
     Minion,
     Projectile,
     Tower,
@@ -41,6 +42,7 @@ class MobaGame:
         self.mouse_y = HEIGHT // 2
         self.last_time = time.perf_counter()
         self.spawn_timer = 0
+        self.enemy_xp_timer = 0
         self.match_over = False
         self.winner = None
         self.message_until = 0
@@ -95,6 +97,9 @@ class MobaGame:
     def item_name(self, item_key):
         return L10N[self.language]["items"][item_key]
 
+    def mode_rule(self):
+        return MODE_RULES.get(self.selected_mode_key or "rank", MODE_RULES["rank"])
+
     def make_hero(self, hero_key, team, x, y):
         config = HEROES[hero_key]
         return Hero(
@@ -118,6 +123,7 @@ class MobaGame:
 
     def reset_match(self, hero_key):
         self.selected_hero_key = hero_key
+        rule = self.mode_rule()
         self.match_over = False
         self.winner = None
         self.spawn_timer = 0
@@ -127,12 +133,15 @@ class MobaGame:
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
         self.enemy_hero.name = "Red Vanguard"
+        self.apply_starting_level(self.player, rule["start_level"])
+        self.player.gold = rule["start_gold"]
+        self.scale_hero_stats(self.enemy_hero, rule["enemy_stat_mult"])
         self.blue_core = Core(
             74,
             626,
             "blue",
-            1000,
-            1000,
+            1000 * rule["core_hp_mult"],
+            1000 * rule["core_hp_mult"],
             35,
             attack_damage=70,
             attack_range=210,
@@ -143,8 +152,8 @@ class MobaGame:
             1008,
             112,
             "red",
-            1000,
-            1000,
+            1000 * rule["core_hp_mult"],
+            1000 * rule["core_hp_mult"],
             35,
             attack_damage=70,
             attack_range=210,
@@ -152,10 +161,25 @@ class MobaGame:
             name="Red Core",
         )
         self.towers = self.make_towers()
+        self.scale_structures(rule)
         self.minions = []
         self.projectiles = []
         self.effects = []
         self.shop_cards = []
+
+    def apply_starting_level(self, hero, level):
+        for _ in range(max(0, level - 1)):
+            self.level_up(hero, silent=True)
+
+    def scale_hero_stats(self, hero, multiplier):
+        hero.max_hp *= multiplier
+        hero.hp = hero.max_hp
+        hero.attack_damage *= multiplier
+
+    def scale_structures(self, rule):
+        for tower in self.towers:
+            tower.max_hp *= rule["tower_hp_mult"]
+            tower.hp = tower.max_hp
 
     def make_towers(self):
         data = [
@@ -278,9 +302,9 @@ class MobaGame:
 
     def mode_configs(self):
         return {
-            "rank": (self.text("mode_rank"), "#78a3ff"),
-            "train": (self.text("mode_train"), "#76f4d1"),
-            "quick": (self.text("mode_quick"), "#b38cff"),
+            "rank": (self.text("mode_rank"), "#78a3ff", L10N[self.language]["mode_desc"]["rank"]),
+            "train": (self.text("mode_train"), "#76f4d1", L10N[self.language]["mode_desc"]["train"]),
+            "quick": (self.text("mode_quick"), "#b38cff", L10N[self.language]["mode_desc"]["quick"]),
         }
 
     def choose_mode(self, mode_key):
@@ -369,10 +393,14 @@ class MobaGame:
 
     def update(self, dt):
         self.match_time += dt
+        self.enemy_xp_timer += dt
+        if self.enemy_xp_timer >= 5:
+            self.enemy_xp_timer = 0
+            self.gain_xp(self.enemy_hero, self.mode_rule()["enemy_xp_rate"])
         self.spawn_timer -= dt
         if self.spawn_timer <= 0:
             self.spawn_wave()
-            self.spawn_timer = 7.0
+            self.spawn_timer = self.mode_rule()["spawn_interval"]
 
         self.update_player(dt)
         self.update_enemy_hero(dt)
@@ -567,6 +595,8 @@ class MobaGame:
                 killer = self.enemy_hero if hero.team == "blue" else self.player
                 killer.kills += 1
                 killer.gold += 80
+                if killer.team == "red":
+                    self.gain_xp(killer, 120)
                 self.show_message(
                     self.text(
                         "defeated",
@@ -796,27 +826,31 @@ class MobaGame:
         )
 
     def reward_player(self, target):
+        rule = self.mode_rule()
         if isinstance(target, Minion):
-            self.player.gold += 8
-            self.gain_xp(28)
+            self.player.gold += int(8 * rule["gold_mult"])
+            self.gain_xp(self.player, int(28 * rule["xp_mult"]))
         elif isinstance(target, Tower):
-            self.player.gold += 120
-            self.gain_xp(90)
+            self.player.gold += int(120 * rule["gold_mult"])
+            self.gain_xp(self.player, int(90 * rule["xp_mult"]))
         elif isinstance(target, Hero):
-            self.player.gold += 120
-            self.gain_xp(120)
+            self.player.gold += int(120 * rule["gold_mult"])
+            self.gain_xp(self.player, int(120 * rule["xp_mult"]))
 
-    def gain_xp(self, amount):
-        hero = self.player
+    def gain_xp(self, hero, amount):
         hero.xp += amount
         while hero.xp >= hero.next_xp:
             hero.xp -= hero.next_xp
-            hero.level += 1
-            hero.next_xp = int(hero.next_xp * 1.32)
-            hero.max_hp += 48
-            hero.hp = min(hero.max_hp, hero.hp + 48)
-            hero.attack_damage += 4
-            hero.attack_range += 3
+            self.level_up(hero)
+
+    def level_up(self, hero, silent=False):
+        hero.level += 1
+        hero.next_xp = int(hero.next_xp * 1.32)
+        hero.max_hp += 48
+        hero.hp = min(hero.max_hp, hero.hp + 48)
+        hero.attack_damage += 4
+        hero.attack_range += 3
+        if not silent and hero.team == "blue":
             self.show_message(self.text("level_up", name=self.hero_name(hero.hero_key), level=hero.level))
 
     def apply_damage(self, target, amount, attacker_team):
@@ -980,7 +1014,7 @@ class MobaGame:
         ]
         mode_configs = self.mode_configs()
         for mode_key, left, top, right, bottom in mode_layout:
-            title, color = mode_configs[mode_key]
+            title, color, desc = mode_configs[mode_key]
             selected = self.selected_mode_key == mode_key
             hovered = left <= self.mouse_x <= right and top <= self.mouse_y <= bottom
             outline = "#f5f1d7" if selected else color if hovered else "#394043"
@@ -989,7 +1023,8 @@ class MobaGame:
             c.create_rectangle(left, top, right, bottom, fill=fill, outline=outline, width=3 if selected else 2)
             c.create_rectangle(left, top, right, top + 38, fill="#151b1e", outline="")
             c.create_text(left + 22, top + 20, text=title, fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
-            c.create_line(left + 24, bottom - 32, right - 24, top + 58, fill=color, width=5)
+            c.create_text(left + 22, top + 62, text=desc, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=right - left - 42)
+            c.create_line(left + 24, bottom - 28, right - 24, top + 96, fill=color, width=5)
             c.create_oval(right - 74, bottom - 78, right - 24, bottom - 28, fill=color, outline="")
 
         self.lobby_buttons = [("start", 408, 548, 692, 616)]
