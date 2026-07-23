@@ -56,6 +56,7 @@ class MobaGame:
         self.recall_duration = 3.0
         self.summoner_cooldowns = {"f": 0, "g": 0}
         self.summoner_cd_durations = {"f": 12.0, "g": 18.0}
+        self.aiming_skill = None
 
         self.paths = {
             "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],
@@ -146,6 +147,7 @@ class MobaGame:
         self.recalling = False
         self.recall_elapsed = 0.0
         self.summoner_cooldowns = {"f": 0, "g": 0}
+        self.aiming_skill = None
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
         self.enemy_hero.name = "Red Vanguard"
@@ -276,17 +278,15 @@ class MobaGame:
                 self.cancel_recall()
             return
 
-        self.keys.add(key)
         if self.state == "playing" and key == "b":
             self.start_recall()
             return
-        if key == "q":
-            self.cast_q(self.player)
-        elif key == "e":
-            self.cast_e(self.player)
-        elif key == "r":
-            self.cast_r(self.player)
-        elif key == "f":
+        if self.state == "playing" and key in {"q", "e", "r"}:
+            self.start_aiming_skill(key)
+            return
+
+        self.keys.add(key)
+        if key == "f":
             self.cast_flash()
         elif key == "g":
             self.cast_heal()
@@ -299,6 +299,9 @@ class MobaGame:
             self.root.destroy()
 
     def on_key_release(self, event):
+        key = event.keysym.lower()
+        if self.state == "playing" and key == self.aiming_skill:
+            self.cast_aiming_skill()
         self.keys.discard(event.keysym.lower())
 
     def on_mouse_move(self, event):
@@ -322,6 +325,9 @@ class MobaGame:
         if self.state == "playing" and self.recalling:
             self.cancel_recall()
             return
+        if self.state == "playing" and self.aiming_skill:
+            self.cast_aiming_skill()
+            return
         if self.select_shop_at(self.mouse_x, self.mouse_y):
             return
         self.hero_attack(self.player)
@@ -331,6 +337,9 @@ class MobaGame:
             return
         if self.recalling:
             self.cancel_recall()
+            return
+        if self.aiming_skill:
+            self.aiming_skill = None
             return
         self.cast_e(self.player)
 
@@ -386,6 +395,7 @@ class MobaGame:
     def start_recall(self):
         if self.state != "playing" or not self.player.alive or self.recalling:
             return
+        self.aiming_skill = None
         self.recalling = True
         self.recall_elapsed = 0.0
         text = self.text("recall_start")
@@ -830,6 +840,9 @@ class MobaGame:
         hero.cooldowns[key] = current + hero.skill_cds[key]
         return True
 
+    def skill_available(self, hero, key):
+        return hero.alive and self.now() >= hero.cooldowns[key]
+
     def aim_vector(self, hero):
         vx, vy = norm(self.mouse_x - hero.x, self.mouse_y - hero.y)
         if vx == 0 and vy == 0:
@@ -892,6 +905,71 @@ class MobaGame:
 
     def spawn_banner(self, text, color="#d8cf9b", ttl=1.4):
         self.banners.append(Banner(text, color, ttl, ttl))
+
+    def start_aiming_skill(self, skill_key):
+        if self.state != "playing" or not self.skill_available(self.player, skill_key):
+            return
+        self.aiming_skill = skill_key
+
+    def cast_aiming_skill(self):
+        skill_key = self.aiming_skill
+        self.aiming_skill = None
+        if skill_key == "q":
+            self.cast_q(self.player)
+        elif skill_key == "e":
+            self.cast_e(self.player)
+        elif skill_key == "r":
+            self.cast_r(self.player)
+
+    def draw_skill_preview(self, c):
+        if not self.aiming_skill or not self.player or not self.player.alive:
+            return
+        hero = self.player
+        vx, vy = self.aim_vector(hero)
+        if self.aiming_skill == "q":
+            if hero.hero_key == "ranger":
+                angle = math.atan2(vy, vx)
+                for offset in (-0.18, 0, 0.18):
+                    ax = math.cos(angle + offset)
+                    ay = math.sin(angle + offset)
+                    c.create_line(hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260, fill=hero.accent, width=3, dash=(8, 6))
+            elif hero.hero_key == "sentinel":
+                c.create_oval(hero.x - 72, hero.y - 72, hero.x + 72, hero.y + 72, outline=hero.accent, width=2, dash=(8, 4))
+                c.create_line(hero.x, hero.y, hero.x + vx * 150, hero.y + vy * 150, fill=hero.accent, width=3, dash=(8, 6))
+            elif hero.hero_key == "arcanist":
+                c.create_line(hero.x, hero.y, hero.x + vx * 180, hero.y + vy * 180, fill=hero.accent, width=5, dash=(10, 6))
+            elif hero.hero_key == "shade":
+                c.create_line(hero.x, hero.y, hero.x + vx * 165, hero.y + vy * 165, fill=hero.accent, width=4, dash=(8, 6))
+            else:
+                c.create_line(hero.x, hero.y, hero.x + vx * 260, hero.y + vy * 260, fill=hero.accent, width=3, dash=(8, 6))
+            end_x = hero.x + vx * 260
+            end_y = hero.y + vy * 260
+            c.create_oval(end_x - 14, end_y - 14, end_x + 14, end_y + 14, outline=hero.accent, width=2)
+        elif self.aiming_skill == "e":
+            if hero.hero_key in {"sentinel", "arcanist"}:
+                radius = 82 if hero.hero_key == "arcanist" else 94
+                c.create_oval(hero.x - radius, hero.y - radius, hero.x + radius, hero.y + radius, outline=hero.accent, width=2, dash=(8, 4))
+                c.create_oval(hero.x - 16, hero.y - 16, hero.x + 16, hero.y + 16, outline=hero.accent, width=2)
+            else:
+                distance = 168 if hero.hero_key == "ranger" else 205 if hero.hero_key == "shade" else 120
+                end_x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
+                end_y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
+                c.create_line(hero.x, hero.y, end_x, end_y, fill=hero.accent, width=4, dash=(10, 6))
+                c.create_oval(end_x - 16, end_y - 16, end_x + 16, end_y + 16, outline=hero.accent, width=2)
+        elif self.aiming_skill == "r":
+            if hero.hero_key == "ranger":
+                angle = math.atan2(vy, vx)
+                for offset in (-0.52, -0.39, -0.26, -0.13, 0, 0.13, 0.26, 0.39, 0.52):
+                    ax = math.cos(angle + offset)
+                    ay = math.sin(angle + offset)
+                    c.create_line(hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260, fill=hero.accent, width=2, dash=(10, 6))
+            elif hero.hero_key == "shade":
+                c.create_line(hero.x, hero.y, self.mouse_x, self.mouse_y, fill=hero.accent, width=5, dash=(12, 8))
+                c.create_oval(self.mouse_x - 34, self.mouse_y - 34, self.mouse_x + 34, self.mouse_y + 34, outline=hero.accent, width=2)
+            else:
+                radius = 96 if hero.hero_key == "vanguard" else 120 if hero.hero_key == "arcanist" else 136
+                c.create_oval(self.mouse_x - radius, self.mouse_y - radius, self.mouse_x + radius, self.mouse_y + radius, outline=hero.accent, width=2, dash=(8, 4))
+                c.create_oval(self.mouse_x - 12, self.mouse_y - 12, self.mouse_x + 12, self.mouse_y + 12, outline=hero.accent, width=2)
 
     def cast_q(self, hero):
         if not self.skill_ready(hero, "q"):
@@ -1495,6 +1573,7 @@ class MobaGame:
 
         self.draw_minimap(c)
         self.draw_virtual_stick(c)
+        self.draw_skill_preview(c)
         self.draw_skill(c, WIDTH - 226, HEIGHT - 92, "F", self.summoner_cooldowns["f"], self.summoner_cd_durations["f"], 40)
         self.draw_skill(c, WIDTH - 226, HEIGHT - 154, "G", self.summoner_cooldowns["g"], self.summoner_cd_durations["g"], 40)
         self.draw_skill(c, WIDTH - 112, HEIGHT - 92, "Q", self.player.cooldowns["q"], self.player.skill_cds["q"], 46)
