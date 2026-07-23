@@ -798,6 +798,21 @@ class MobaGame:
             return
         vx, vy = self.aim_vector(hero)
         self.spawn_cast_fx(hero, "q")
+        if hero.hero_key == "sentinel":
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=76, ttl=0.34)
+            self.damage_area(hero.team, hero.x, hero.y, 72, self.skill_damage(hero, 68))
+            self.projectiles.append(
+                Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 54), 310, vx=vx, vy=vy, radius=14, pierce=True, ttl=0.85, color=hero.accent)
+            )
+            return
+
+        if hero.hero_key == "shade":
+            self.spawn_beam(hero.x, hero.y, hero.x + vx * 165, hero.y + vy * 165, hero.accent, width=6, ttl=0.13)
+            self.projectiles.append(
+                Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 92), 560, vx=vx, vy=vy, radius=9, pierce=False, ttl=0.62, color=hero.accent)
+            )
+            return
+
         if hero.hero_key == "ranger":
             angle = math.atan2(vy, vx)
             for offset in (-0.18, 0, 0.18):
@@ -850,6 +865,13 @@ class MobaGame:
             return
         vx, vy = self.aim_vector(hero)
         self.spawn_cast_fx(hero, "e")
+        if hero.hero_key == "sentinel":
+            hero.hp = min(hero.max_hp, hero.hp + 140)
+            hero.next_attack = 0
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=94, ttl=0.36)
+            self.spawn_particles(hero.x, hero.y, hero.accent, count=18, speed=90, spread=0.9, radius=3.0, ttl=0.36)
+            return
+
         if hero.hero_key == "arcanist":
             self.spawn_beam(hero.x, hero.y, hero.x, hero.y, hero.accent, width=8, ttl=0.2)
             hero.hp = min(hero.max_hp, hero.hp + 95)
@@ -858,6 +880,18 @@ class MobaGame:
             return
 
         old_x, old_y = hero.x, hero.y
+        if hero.hero_key == "shade":
+            target = self.nearest_enemy(hero, 260, include_cores=False)
+            if target:
+                vx, vy = norm(target.x - hero.x, target.y - hero.y)
+            distance = 205
+            hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
+            hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
+            self.spawn_beam(old_x, old_y, hero.x, hero.y, hero.accent, width=7, ttl=0.18)
+            self.damage_area(hero.team, hero.x, hero.y, 54, self.skill_damage(hero, 72))
+            self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
+            return
+
         distance = 168 if hero.hero_key == "ranger" else 120
         hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
         hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
@@ -877,6 +911,26 @@ class MobaGame:
         if not self.skill_ready(hero, "r"):
             return
         self.spawn_cast_fx(hero, "r")
+
+        if hero.hero_key == "sentinel":
+            self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=148, ttl=0.55)
+            self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=30, speed=165, spread=1.35, radius=3.4, ttl=0.48)
+            self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=8, ttl=0.2)
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 136, self.skill_damage(hero, 154, 1.35), include_cores=True)
+            return
+
+        if hero.hero_key == "shade":
+            target = self.nearest_enemy(hero, 360, include_cores=False)
+            tx, ty = (target.x, target.y) if target else (self.mouse_x, self.mouse_y)
+            if dist_xy(hero.x, hero.y, tx, ty) > 380:
+                return
+            self.spawn_beam(hero.x, hero.y, tx, ty, hero.accent, width=9, ttl=0.18)
+            hero.x = clamp(tx - 18, 35, WIDTH - 35)
+            hero.y = clamp(ty - 18, 35, HEIGHT - 35)
+            self.spawn_ring(tx, ty, hero.accent, base_radius=88, ttl=0.32)
+            self.spawn_particles(tx, ty, hero.accent, count=28, speed=220, spread=1.25, radius=3.2, ttl=0.38)
+            self.damage_area(hero.team, tx, ty, 78, self.skill_damage(hero, 188, 1.5), include_cores=False)
+            return
 
         if hero.hero_key == "ranger":
             vx, vy = self.aim_vector(hero)
@@ -1108,37 +1162,39 @@ class MobaGame:
         )
 
         self.hero_cards = []
-        card_w = 286
-        card_h = 390
-        gap = 34
-        start_x = (WIDTH - card_w * 3 - gap * 2) // 2
-        top = 148
+        card_w = 300
+        card_h = 206
+        gap_x = 28
+        gap_y = 24
+        columns = 3
+        start_x = (WIDTH - card_w * columns - gap_x * (columns - 1)) // 2
+        start_y = 122
         for index, (hero_key, config) in enumerate(HEROES.items()):
-            left = start_x + index * (card_w + gap)
+            row = index // columns
+            col = index % columns
+            left = start_x + col * (card_w + gap_x)
+            top = start_y + row * (card_h + gap_y)
             right = left + card_w
             bottom = top + card_h
             self.hero_cards.append((hero_key, left, top, right, bottom))
             active = left <= self.mouse_x <= right and top <= self.mouse_y <= bottom
             outline = config["accent"] if active else "#394043"
             c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=outline, width=3)
-            c.create_rectangle(left, top, right, top + 76, fill="#161c1f", outline="")
-            c.create_text(left + 24, top + 26, text=self.hero_name(hero_key), fill="#f5f1d7", anchor="w", font=("Segoe UI", 18, "bold"))
-            c.create_text(left + 24, top + 54, text=self.hero_role(hero_key), fill=config["accent"], anchor="w", font=("Segoe UI", 12, "bold"))
-            self.draw_hero_portrait(c, left + card_w // 2, top + 137, config)
+            c.create_rectangle(left, top, right, top + 52, fill="#161c1f", outline="")
+            c.create_text(left + 20, top + 19, text=self.hero_name(hero_key), fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
+            c.create_text(left + 20, top + 40, text=self.hero_role(hero_key), fill=config["accent"], anchor="w", font=("Segoe UI", 10, "bold"))
+            self.draw_hero_icon(c, left + 244, top + 86, config)
 
-            stat_y = top + 215
-            self.draw_stat(c, left + 26, stat_y, "HP", config["hp"], 700, "#48d06b")
-            self.draw_stat(c, left + 26, stat_y + 38, "SPD", config["speed"], 240, "#76b7ff")
-            self.draw_stat(c, left + 26, stat_y + 76, "ATK", config["attack_damage"], 42, "#f7d765")
-            c.create_text(left + 26, top + 336, text="Q", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-            c.create_text(left + 54, top + 336, text=self.hero_skill(hero_key, "q"), fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
-            c.create_text(left + 26, top + 362, text="E", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-            c.create_text(left + 54, top + 362, text=self.hero_skill(hero_key, "e"), fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
-            c.create_text(left + 26, top + 388, text="R", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-            c.create_text(left + 54, top + 388, text=self.hero_skill(hero_key, "r"), fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+            stat_y = top + 76
+            self.draw_stat(c, left + 18, stat_y, "HP", config["hp"], 760, "#48d06b")
+            self.draw_stat(c, left + 18, stat_y + 28, "SPD", config["speed"], 250, "#76b7ff")
+            self.draw_stat(c, left + 18, stat_y + 56, "ATK", config["attack_damage"], 45, "#f7d765")
+            c.create_text(left + 18, top + 158, text=f"Q {self.hero_skill(hero_key, 'q')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9, "bold"))
+            c.create_text(left + 18, top + 178, text=f"E {self.hero_skill(hero_key, 'e')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9, "bold"))
+            c.create_text(left + 156, top + 178, text=f"R {self.hero_skill(hero_key, 'r')}", fill="#f5d28a", anchor="w", font=("Segoe UI", 9, "bold"))
 
-        c.create_rectangle(358, 590, 742, 636, fill="#101416", outline="#394043")
-        c.create_text(WIDTH // 2, 613, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+        c.create_rectangle(358, 610, 742, 656, fill="#101416", outline="#394043")
+        c.create_text(WIDTH // 2, 633, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
 
     def draw_lobby(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#12181b", outline="")
@@ -1219,6 +1275,12 @@ class MobaGame:
         c.create_polygon(x, y - 48, x - 45, y + 38, x + 45, y + 38, fill=accent, outline="#f5f1d7", width=2)
         c.create_oval(x - 24, y - 20, x + 24, y + 28, fill="#1f282c", outline="")
         c.create_line(x - 62, y + 68, x + 62, y + 68, fill=accent, width=3)
+
+    def draw_hero_icon(self, c, x, y, config):
+        accent = config["accent"]
+        c.create_oval(x - 36, y - 36, x + 36, y + 36, fill="#14191c", outline=accent, width=3)
+        c.create_polygon(x, y - 30, x - 28, y + 24, x + 28, y + 24, fill=accent, outline="#f5f1d7", width=1)
+        c.create_oval(x - 14, y - 10, x + 14, y + 18, fill="#1f282c", outline="")
 
     def draw_stat(self, c, x, y, label, value, max_value, color):
         c.create_text(x, y, text=label, fill="#f5f1d7", anchor="w", font=("Segoe UI", 10, "bold"))
