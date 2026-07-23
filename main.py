@@ -2,276 +2,25 @@ import math
 import random
 import time
 import tkinter as tk
-from dataclasses import dataclass, field
-
-
-WIDTH = 1100
-HEIGHT = 700
-FPS_MS = 16
-
-
-def clamp(value, low, high):
-    return max(low, min(high, value))
-
-
-def dist(a, b):
-    return math.hypot(a.x - b.x, a.y - b.y)
-
-
-def dist_xy(ax, ay, bx, by):
-    return math.hypot(ax - bx, ay - by)
-
-
-def norm(dx, dy):
-    length = math.hypot(dx, dy)
-    if length <= 0.0001:
-        return 0, 0
-    return dx / length, dy / length
-
-
-def team_color(team):
-    return "#3f7cff" if team == "blue" else "#e84d4f"
-
-
-HEROES = {
-    "vanguard": {
-        "name": "Vanguard",
-        "role": "Fighter",
-        "accent": "#ffe082",
-        "hp": 620,
-        "speed": 188,
-        "attack_damage": 34,
-        "attack_range": 225,
-        "attack_cd": 0.44,
-        "cooldowns": {"q": 3.6, "e": 5.5, "r": 13.5},
-        "skills": {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"},
-    },
-    "ranger": {
-        "name": "Star Ranger",
-        "role": "Marksman",
-        "accent": "#76f4d1",
-        "hp": 470,
-        "speed": 218,
-        "attack_damage": 25,
-        "attack_range": 285,
-        "attack_cd": 0.30,
-        "cooldowns": {"q": 2.8, "e": 4.8, "r": 11.0},
-        "skills": {"q": "Triple Shot", "e": "Quick Step", "r": "Arrow Storm"},
-    },
-    "arcanist": {
-        "name": "Storm Arcanist",
-        "role": "Mage",
-        "accent": "#b38cff",
-        "hp": 440,
-        "speed": 174,
-        "attack_damage": 23,
-        "attack_range": 260,
-        "attack_cd": 0.52,
-        "cooldowns": {"q": 3.2, "e": 6.2, "r": 14.0},
-        "skills": {"q": "Storm Orb", "e": "Arc Shield", "r": "Thunder Field"},
-    },
-}
-
-
-ITEMS = {
-    "blade": {"cost": 120, "attack_damage": 8, "max_stacks": 3, "color": "#f7d765"},
-    "boots": {"cost": 100, "speed": 18, "max_stacks": 3, "color": "#76b7ff"},
-    "guard": {"cost": 150, "max_hp": 110, "max_stacks": 3, "color": "#48d06b"},
-}
-
-
-L10N = {
-    "en": {
-        "language_title": "CHOOSE LANGUAGE",
-        "language_subtitle": "Python MOBA Prototype",
-        "lobby_title": "AETHER ARENA",
-        "lobby_subtitle": "Original MOBA Prototype",
-        "start_match": "START MATCH",
-        "mode_rank": "Crystal Valley",
-        "mode_train": "Practice Grounds",
-        "mode_quick": "Quick Duel",
-        "season": "Season Trial",
-        "profile": "Commander",
-        "loading": "LOADING",
-        "versus": "VERSUS",
-        "hero_title": "SELECT HERO",
-        "choose_hero": "CHOOSE YOUR HERO",
-        "blue": "BLUE",
-        "red": "RED",
-        "victory_blue": "BLUE VICTORY",
-        "victory_red": "RED VICTORY",
-        "exit": "Close the window to exit",
-        "deployed": "{name} deployed",
-        "defeated": "{killer} defeated {victim}",
-        "destroyed": "{name} destroyed",
-        "level_up": "{name} reached Lv.{level}",
-        "need_base": "Return to base to buy equipment",
-        "not_enough_gold": "Not enough gold",
-        "item_max": "Equipment is maxed",
-        "bought": "Bought {item}",
-        "shop": "SHOP",
-        "level": "LV",
-        "enemy_prefix": "Enemy {name}",
-        "hero_names": {
-            "vanguard": "Vanguard",
-            "ranger": "Star Ranger",
-            "arcanist": "Storm Arcanist",
-        },
-        "hero_roles": {
-            "vanguard": "Fighter",
-            "ranger": "Marksman",
-            "arcanist": "Mage",
-        },
-        "skills": {
-            "vanguard": {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"},
-            "ranger": {"q": "Triple Shot", "e": "Quick Step", "r": "Arrow Storm"},
-            "arcanist": {"q": "Storm Orb", "e": "Arc Shield", "r": "Thunder Field"},
-        },
-        "items": {
-            "blade": "Blade",
-            "boots": "Boots",
-            "guard": "Guard",
-        },
-    },
-    "zh": {
-        "language_title": "选择语言",
-        "language_subtitle": "Python 王者类 MOBA 原型",
-        "lobby_title": "星辉峡谷",
-        "lobby_subtitle": "原创王者类 MOBA 原型",
-        "start_match": "开始对战",
-        "mode_rank": "水晶峡谷",
-        "mode_train": "训练营",
-        "mode_quick": "快速对决",
-        "season": "赛季试炼",
-        "profile": "召唤师",
-        "loading": "加载中",
-        "versus": "对战",
-        "hero_title": "选择英雄",
-        "choose_hero": "选择你的英雄",
-        "blue": "蓝方",
-        "red": "红方",
-        "victory_blue": "蓝方胜利",
-        "victory_red": "红方胜利",
-        "exit": "关闭窗口退出",
-        "deployed": "{name} 已出战",
-        "defeated": "{killer} 击败了 {victim}",
-        "destroyed": "{name} 被摧毁",
-        "level_up": "{name} 升到 {level} 级",
-        "need_base": "回到己方水晶附近才能购买",
-        "not_enough_gold": "金币不足",
-        "item_max": "装备已满级",
-        "bought": "已购买 {item}",
-        "shop": "商店",
-        "level": "等级",
-        "enemy_prefix": "敌方{name}",
-        "hero_names": {
-            "vanguard": "铁卫",
-            "ranger": "星弓",
-            "arcanist": "雷法",
-        },
-        "hero_roles": {
-            "vanguard": "战士",
-            "ranger": "射手",
-            "arcanist": "法师",
-        },
-        "skills": {
-            "vanguard": {"q": "破阵矛", "e": "铁壁冲锋", "r": "裂地击"},
-            "ranger": {"q": "三连矢", "e": "疾步", "r": "箭雨"},
-            "arcanist": {"q": "雷光法球", "e": "奥术护盾", "r": "雷暴领域"},
-        },
-        "items": {
-            "blade": "破军刃",
-            "boots": "疾行靴",
-            "guard": "守护甲",
-        },
-    },
-}
-
-
-@dataclass
-class Unit:
-    x: float
-    y: float
-    team: str
-    hp: float
-    max_hp: float
-    radius: float
-    speed: float = 0
-    attack_damage: float = 0
-    attack_range: float = 0
-    attack_cd: float = 0
-    next_attack: float = 0
-    alive: bool = True
-
-    def take_damage(self, amount):
-        if not self.alive:
-            return
-        self.hp -= amount
-        if self.hp <= 0:
-            self.hp = 0
-            self.alive = False
-
-
-@dataclass
-class Hero(Unit):
-    name: str = "Hero"
-    hero_key: str = "vanguard"
-    role: str = "Fighter"
-    accent: str = "#ffe082"
-    skill_cds: dict = field(default_factory=lambda: {"q": 3.6, "e": 5.5, "r": 13.5})
-    skill_names: dict = field(default_factory=lambda: {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"})
-    level: int = 1
-    xp: int = 0
-    next_xp: int = 120
-    gold: int = 0
-    kills: int = 0
-    equipment: dict = field(default_factory=lambda: {"blade": 0, "boots": 0, "guard": 0})
-    respawn_at: float = 0
-    cooldowns: dict = field(default_factory=lambda: {"q": 0, "e": 0, "r": 0})
-
-
-@dataclass
-class Minion(Unit):
-    lane: str = "mid"
-    waypoint: int = 1
-
-
-@dataclass
-class Tower(Unit):
-    lane: str = "mid"
-    name: str = "Tower"
-
-
-@dataclass
-class Core(Unit):
-    name: str = "Core"
-
-
-@dataclass
-class Projectile:
-    x: float
-    y: float
-    team: str
-    damage: float
-    speed: float
-    target: object | None = None
-    vx: float = 0
-    vy: float = 0
-    radius: float = 5
-    pierce: bool = False
-    ttl: float = 2
-    color: str = "#ffffff"
-
-
-@dataclass
-class Effect:
-    x: float
-    y: float
-    radius: float
-    max_radius: float
-    color: str
-    ttl: float
-    max_ttl: float
+from game_data import (
+    Core,
+    Effect,
+    FPS_MS,
+    HEROES,
+    HEIGHT,
+    Hero,
+    ITEMS,
+    L10N,
+    Minion,
+    Projectile,
+    Tower,
+    WIDTH,
+    clamp,
+    dist,
+    dist_xy,
+    norm,
+    team_color,
+)
 
 
 class MobaGame:
@@ -307,10 +56,19 @@ class MobaGame:
         self.state = "language"
         self.language_buttons = []
         self.lobby_buttons = []
+        self.mode_cards = []
         self.hero_cards = []
         self.loading_started_at = 0
-        self.selected_hero_key = "vanguard"
-        self.reset_match(self.selected_hero_key)
+        self.selected_mode_key = None
+        self.selected_hero_key = None
+        self.player = None
+        self.enemy_hero = None
+        self.blue_core = None
+        self.red_core = None
+        self.towers = []
+        self.minions = []
+        self.projectiles = []
+        self.effects = []
 
         self.root.bind("<KeyPress>", self.on_key_press)
         self.root.bind("<KeyRelease>", self.on_key_release)
@@ -448,7 +206,9 @@ class MobaGame:
             return
 
         if self.state == "lobby":
-            if key in {"return", "space"}:
+            if key in {"1", "2", "3"}:
+                self.choose_mode(list(self.mode_configs().keys())[int(key) - 1])
+            elif key in {"return", "space"} and self.selected_mode_key:
                 self.state = "select"
             elif key == "escape":
                 self.root.destroy()
@@ -512,7 +272,19 @@ class MobaGame:
 
     def choose_language(self, language):
         self.language = language
+        self.selected_mode_key = None
+        self.selected_hero_key = None
         self.state = "lobby"
+
+    def mode_configs(self):
+        return {
+            "rank": (self.text("mode_rank"), "#78a3ff"),
+            "train": (self.text("mode_train"), "#76f4d1"),
+            "quick": (self.text("mode_quick"), "#b38cff"),
+        }
+
+    def choose_mode(self, mode_key):
+        self.selected_mode_key = mode_key
 
     def choose_hero(self, hero_key):
         self.reset_match(hero_key)
@@ -528,9 +300,13 @@ class MobaGame:
                 return
 
     def select_lobby_at(self, x, y):
+        for mode_key, left, top, right, bottom in self.mode_cards:
+            if left <= x <= right and top <= y <= bottom:
+                self.choose_mode(mode_key)
+                return
         for action, left, top, right, bottom in self.lobby_buttons:
             if left <= x <= right and top <= y <= bottom:
-                if action == "start":
+                if action == "start" and self.selected_mode_key:
                     self.state = "select"
                 return
 
@@ -889,6 +665,11 @@ class MobaGame:
             if target.alive and dist_xy(x, y, target.x, target.y) <= radius + target.radius:
                 self.apply_damage(target, amount, team)
 
+    def skill_damage(self, hero, base):
+        base_attack = HEROES[hero.hero_key]["attack_damage"]
+        attack_bonus = max(0, hero.attack_damage - base_attack)
+        return base + (hero.level - 1) * 8 + attack_bonus * 0.45
+
     def cast_q(self, hero):
         if not self.skill_ready(hero, "q"):
             return
@@ -903,7 +684,7 @@ class MobaGame:
                         hero.x,
                         hero.y,
                         hero.team,
-                        46,
+                        self.skill_damage(hero, 46),
                         520,
                         vx=ax,
                         vy=ay,
@@ -921,7 +702,7 @@ class MobaGame:
                     hero.x,
                     hero.y,
                     hero.team,
-                    96,
+                    self.skill_damage(hero, 96),
                     360,
                     vx=vx,
                     vy=vy,
@@ -934,7 +715,7 @@ class MobaGame:
             return
 
         self.projectiles.append(
-            Projectile(hero.x, hero.y, hero.team, 82, 430, vx=vx, vy=vy, radius=11, pierce=True, ttl=0.95, color=hero.accent)
+            Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 82), 430, vx=vx, vy=vy, radius=11, pierce=True, ttl=0.95, color=hero.accent)
         )
 
     def cast_e(self, hero):
@@ -943,7 +724,7 @@ class MobaGame:
         vx, vy = self.aim_vector(hero)
         if hero.hero_key == "arcanist":
             hero.hp = min(hero.max_hp, hero.hp + 95)
-            self.damage_area(hero.team, hero.x, hero.y, 82, 54)
+            self.damage_area(hero.team, hero.x, hero.y, 82, self.skill_damage(hero, 54))
             self.effects.append(Effect(hero.x, hero.y, 12, 88, hero.accent, 0.34, 0.34))
             return
 
@@ -954,7 +735,7 @@ class MobaGame:
             hero.next_attack = 0
             self.effects.append(Effect(hero.x, hero.y, 8, 42, hero.accent, 0.22, 0.22))
         else:
-            self.damage_area(hero.team, hero.x, hero.y, 52, 42)
+            self.damage_area(hero.team, hero.x, hero.y, 52, self.skill_damage(hero, 42))
             self.effects.append(Effect(hero.x, hero.y, 8, 48, hero.accent, 0.28, 0.28))
 
     def cast_r(self, hero):
@@ -974,7 +755,7 @@ class MobaGame:
                         hero.x,
                         hero.y,
                         hero.team,
-                        42,
+                        self.skill_damage(hero, 42),
                         500,
                         vx=math.cos(angle + offset),
                         vy=math.sin(angle + offset),
@@ -989,11 +770,11 @@ class MobaGame:
 
         if hero.hero_key == "arcanist":
             self.effects.append(Effect(self.mouse_x, self.mouse_y, 14, 130, hero.accent, 0.55, 0.55))
-            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, 176, include_cores=True)
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176), include_cores=True)
             return
 
         self.effects.append(Effect(self.mouse_x, self.mouse_y, 10, 106, hero.accent, 0.45, 0.45))
-        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, 148, include_cores=True)
+        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 148), include_cores=True)
 
     def cast_ai_bolt(self, hero, target):
         hero.cooldowns["q"] = self.now() + 4.2
@@ -1003,7 +784,7 @@ class MobaGame:
                 hero.x,
                 hero.y,
                 hero.team,
-                64,
+                self.skill_damage(hero, 64),
                 385,
                 vx=vx,
                 vy=vy,
@@ -1182,29 +963,41 @@ class MobaGame:
         c.create_rectangle(0, 0, WIDTH, 82, fill="#0d1215", outline="")
         c.create_text(34, 30, text=self.text("lobby_title"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 25, "bold"))
         c.create_text(36, 58, text=self.text("lobby_subtitle"), fill="#aeb8ad", anchor="w", font=("Segoe UI", 11))
-        c.create_text(WIDTH - 34, 30, text=f"G {self.player.gold}", fill="#f7d765", anchor="e", font=("Segoe UI", 13, "bold"))
-        c.create_text(WIDTH - 34, 58, text=f"{self.text('level')} {self.player.level}", fill="#cfd6cd", anchor="e", font=("Segoe UI", 12))
+        c.create_text(WIDTH - 34, 30, text=self.text("profile"), fill="#f7d765", anchor="e", font=("Segoe UI", 13, "bold"))
+        c.create_text(WIDTH - 34, 58, text=self.text("season"), fill="#cfd6cd", anchor="e", font=("Segoe UI", 12))
 
         c.create_rectangle(44, 122, 342, 254, fill="#20282b", outline="#d8cf9b", width=2)
         c.create_text(72, 154, text=self.text("profile"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
-        c.create_text(72, 188, text=self.hero_name(self.selected_hero_key), fill="#78a3ff", anchor="w", font=("Segoe UI", 20, "bold"))
-        c.create_text(72, 222, text=self.text("season"), fill="#aeb8ad", anchor="w", font=("Segoe UI", 12))
+        mode_name = self.mode_configs()[self.selected_mode_key][0] if self.selected_mode_key else self.text("mode_unselected")
+        c.create_text(72, 188, text=mode_name, fill="#78a3ff", anchor="w", font=("Segoe UI", 18, "bold"))
+        c.create_text(72, 222, text=self.text("hero_unselected"), fill="#aeb8ad", anchor="w", font=("Segoe UI", 12))
 
-        modes = [
-            (404, 132, 666, 284, self.text("mode_rank"), "#78a3ff"),
-            (696, 132, 958, 284, self.text("mode_train"), "#76f4d1"),
-            (404, 318, 666, 470, self.text("mode_quick"), "#b38cff"),
+        self.mode_cards = []
+        mode_layout = [
+            ("rank", 404, 132, 666, 284),
+            ("train", 696, 132, 958, 284),
+            ("quick", 404, 318, 666, 470),
         ]
-        for left, top, right, bottom, title, color in modes:
-            c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=color, width=2)
+        mode_configs = self.mode_configs()
+        for mode_key, left, top, right, bottom in mode_layout:
+            title, color = mode_configs[mode_key]
+            selected = self.selected_mode_key == mode_key
+            hovered = left <= self.mouse_x <= right and top <= self.mouse_y <= bottom
+            outline = "#f5f1d7" if selected else color if hovered else "#394043"
+            fill = "#27343a" if selected else "#20282b"
+            self.mode_cards.append((mode_key, left, top, right, bottom))
+            c.create_rectangle(left, top, right, bottom, fill=fill, outline=outline, width=3 if selected else 2)
             c.create_rectangle(left, top, right, top + 38, fill="#151b1e", outline="")
             c.create_text(left + 22, top + 20, text=title, fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
             c.create_line(left + 24, bottom - 32, right - 24, top + 58, fill=color, width=5)
             c.create_oval(right - 74, bottom - 78, right - 24, bottom - 28, fill=color, outline="")
 
         self.lobby_buttons = [("start", 408, 548, 692, 616)]
-        c.create_rectangle(408, 548, 692, 616, fill="#d8cf9b", outline="#f5f1d7", width=3)
-        c.create_text(WIDTH // 2, 582, text=self.text("start_match"), fill="#101416", font=("Segoe UI", 21, "bold"))
+        button_fill = "#d8cf9b" if self.selected_mode_key else "#4b4f4b"
+        text_fill = "#101416" if self.selected_mode_key else "#aeb8ad"
+        c.create_rectangle(408, 548, 692, 616, fill=button_fill, outline="#f5f1d7", width=3)
+        c.create_text(WIDTH // 2, 582, text=self.text("start_match"), fill=text_fill, font=("Segoe UI", 21, "bold"))
+        c.create_text(WIDTH // 2, 642, text=self.text("mode_prompt"), fill="#aeb8ad", font=("Segoe UI", 12))
 
     def draw_loading(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#101416", outline="")
