@@ -51,6 +51,9 @@ class MobaGame:
         self.winner = None
         self.message_until = 0
         self.message = ""
+        self.recalling = False
+        self.recall_elapsed = 0.0
+        self.recall_duration = 3.0
 
         self.paths = {
             "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],
@@ -138,6 +141,8 @@ class MobaGame:
         self.match_time = 0
         self.message_until = 0
         self.message = ""
+        self.recalling = False
+        self.recall_elapsed = 0.0
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
         self.enemy_hero.name = "Red Vanguard"
@@ -261,7 +266,15 @@ class MobaGame:
                 self.root.destroy()
             return
 
+        if self.state == "playing" and self.recalling:
+            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "space", "1", "2", "3"}:
+                self.cancel_recall()
+            return
+
         self.keys.add(key)
+        if self.state == "playing" and key == "b":
+            self.start_recall()
+            return
         if key == "q":
             self.cast_q(self.player)
         elif key == "e":
@@ -297,12 +310,18 @@ class MobaGame:
         if self.state == "select":
             self.select_card_at(self.mouse_x, self.mouse_y)
             return
+        if self.state == "playing" and self.recalling:
+            self.cancel_recall()
+            return
         if self.select_shop_at(self.mouse_x, self.mouse_y):
             return
         self.hero_attack(self.player)
 
     def on_right_click(self, _event):
         if self.state != "playing":
+            return
+        if self.recalling:
+            self.cancel_recall()
             return
         self.cast_e(self.player)
 
@@ -354,6 +373,40 @@ class MobaGame:
 
     def near_shop(self):
         return self.player.alive and dist(self.player, self.blue_core) <= 155
+
+    def start_recall(self):
+        if self.state != "playing" or not self.player.alive or self.recalling:
+            return
+        self.recalling = True
+        self.recall_elapsed = 0.0
+        text = self.text("recall_start")
+        self.show_message(text)
+        self.spawn_banner(text, "#d8cf9b", ttl=1.2)
+        self.spawn_ring(self.player.x, self.player.y, "#d8cf9b", base_radius=72, ttl=0.36)
+        self.spawn_particles(self.player.x, self.player.y, "#d8cf9b", count=14, speed=120, spread=1.0, radius=2.8, ttl=0.34)
+
+    def cancel_recall(self, announce=True):
+        if not self.recalling:
+            return
+        self.recalling = False
+        self.recall_elapsed = 0.0
+        if announce:
+            text = self.text("recall_cancel")
+            self.show_message(text)
+            self.spawn_banner(text, "#ffb0aa", ttl=1.0)
+
+    def complete_recall(self):
+        if not self.recalling:
+            return
+        self.recalling = False
+        self.recall_elapsed = 0.0
+        self.player.x, self.player.y = 130, 580
+        self.player.hp = self.player.max_hp
+        text = self.text("recall_complete")
+        self.show_message(text)
+        self.spawn_banner(text, "#76f4d1", ttl=1.2)
+        self.spawn_particles(self.player.x, self.player.y, "#76f4d1", count=18, speed=150, spread=1.0, radius=3.2, ttl=0.38)
+        self.spawn_ring(self.player.x, self.player.y, "#76f4d1", base_radius=92, ttl=0.34)
 
     def buy_item(self, item_key):
         if self.state != "playing":
@@ -467,6 +520,15 @@ class MobaGame:
         if not self.player.alive:
             if self.now() >= self.player.respawn_at:
                 self.respawn(self.player)
+            return
+
+        if self.recalling:
+            if any(k in self.keys for k in {"w", "a", "s", "d", "up", "down", "left", "right"}):
+                self.cancel_recall()
+                return
+            self.recall_elapsed += dt
+            if self.recall_elapsed >= self.recall_duration:
+                self.complete_recall()
             return
 
         dx = 0
@@ -1024,6 +1086,8 @@ class MobaGame:
         if isinstance(target, (Tower, Core)):
             amount *= 1.35 if attacker_team == "blue" else 1.15
         was_alive = target.alive
+        if target is self.player and self.recalling:
+            self.cancel_recall()
         self.spawn_damage_text(target.x, target.y - 18, amount, "#ff9a91" if attacker_team == "blue" else "#8fd3ff")
         target.take_damage(amount)
         if was_alive and not target.alive:
@@ -1401,6 +1465,9 @@ class MobaGame:
         if self.now() < self.message_until:
             c.create_text(WIDTH // 2, 78, text=self.message, fill="#f5f1d7", font=("Segoe UI", 18, "bold"))
 
+        if self.recalling:
+            self.draw_recall_indicator(c)
+
         if self.near_shop():
             self.draw_shop(c)
 
@@ -1421,6 +1488,18 @@ class MobaGame:
         c.create_oval(x - 28, y - 28, x + 28, y + 28, fill="#1f2a2e", outline="#d8cf9b", width=2)
         c.create_line(x - 50, y, x + 50, y, fill="#394043", width=2)
         c.create_line(x, y - 50, x, y + 50, fill="#394043", width=2)
+
+    def draw_recall_indicator(self, c):
+        pct = clamp(self.recall_elapsed / self.recall_duration, 0, 1)
+        c.create_rectangle(372, 60, 728, 96, fill="#0d1215", outline="#d8cf9b", width=2)
+        c.create_text(WIDTH // 2, 71, text=self.text("recall_start"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+        c.create_rectangle(432, 78, 668, 88, fill="#252a2a", outline="")
+        c.create_rectangle(432, 78, 432 + 236 * pct, 88, fill="#d8cf9b", outline="")
+        c.create_text(WIDTH // 2, 103, text=f"{int((1 - pct) * self.recall_duration) + 1}", fill="#ffffff", font=("Segoe UI", 8, "bold"))
+        if self.player.alive:
+            x, y = self.player.x, self.player.y - 84
+            c.create_rectangle(x - 46, y - 10, x + 46, y + 8, fill="#0d1215", outline="#d8cf9b")
+            c.create_rectangle(x - 42, y - 6, x - 42 + 84 * pct, y + 4, fill="#d8cf9b", outline="")
 
     def draw_minimap(self, c):
         left, top = 18, 64
