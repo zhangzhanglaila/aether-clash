@@ -335,3 +335,34 @@ class Particle:
     max_ttl: float
     radius: float = 3
     shrink: bool = True
+
+
+@dataclass
+class Beam:
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    color: str
+    ttl: float
+    max_ttl: float
+    width: float = 3
+
+
+@dataclass
+class FloatingText:
+    x: float
+    y: float
+    text: str
+    color: str
+    ttl: float
+    max_ttl: float
+    vy: float = -34
+
+
+@dataclass
+class Banner:
+    text: str
+    color: str
+    ttl: float
+    max_ttl: float
