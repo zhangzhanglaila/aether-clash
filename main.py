@@ -76,6 +76,7 @@ class MobaGame:
         self.mode_cards = []
         self.hero_cards = []
         self.skill_upgrade_buttons = []
+        self.settlement_buttons = []
         self.loading_started_at = 0
         self.selected_mode_key = None
         self.selected_hero_key = None
@@ -196,6 +197,7 @@ class MobaGame:
         self.banners = []
         self.shop_cards = []
         self.skill_upgrade_buttons = []
+        self.settlement_buttons = []
 
     def apply_starting_level(self, hero, level):
         for _ in range(max(0, level - 1)):
@@ -274,6 +276,11 @@ class MobaGame:
         if self.state == "loading":
             return
 
+        if self.state == "playing" and self.match_over:
+            if key == "escape":
+                self.root.destroy()
+            return
+
         if self.state == "select":
             if key.isdigit():
                 hero_keys = list(HEROES.keys())
@@ -339,6 +346,9 @@ class MobaGame:
         if self.state == "select":
             self.select_card_at(self.mouse_x, self.mouse_y)
             return
+        if self.state == "playing" and self.match_over:
+            self.select_settlement_at(self.mouse_x, self.mouse_y)
+            return
         if self.state == "playing" and self.recalling:
             self.cancel_recall()
             return
@@ -353,6 +363,8 @@ class MobaGame:
 
     def on_right_click(self, _event):
         if self.state != "playing":
+            return
+        if self.match_over:
             return
         if self.recalling:
             self.cancel_recall()
@@ -509,6 +521,24 @@ class MobaGame:
         for item_key, left, top, right, bottom in self.shop_cards:
             if left <= x <= right and top <= y <= bottom:
                 return self.buy_item(item_key)
+        return False
+
+    def select_settlement_at(self, x, y):
+        for action, left, top, right, bottom in self.settlement_buttons:
+            if left <= x <= right and top <= y <= bottom:
+                if action == "rematch":
+                    self.reset_match(self.selected_hero_key or "vanguard")
+                    self.state = "loading"
+                    self.loading_started_at = self.now()
+                elif action == "lobby":
+                    self.state = "lobby"
+                    self.selected_mode_key = None
+                    self.selected_hero_key = None
+                    self.match_over = False
+                    self.winner = None
+                    self.show_scoreboard = False
+                    self.aiming_skill = None
+                return True
         return False
 
     def loop(self):
@@ -1706,11 +1736,7 @@ class MobaGame:
             self.draw_scoreboard(c)
 
         if self.match_over:
-            overlay = "#17291f" if self.winner == "blue" else "#35191d"
-            c.create_rectangle(300, 248, 800, 452, fill=overlay, outline="#f5f1d7", width=2)
-            text = self.text("victory_blue") if self.winner == "blue" else self.text("victory_red")
-            c.create_text(WIDTH // 2, 326, text=text, fill="#f5f1d7", font=("Segoe UI", 34, "bold"))
-            c.create_text(WIDTH // 2, 382, text=self.text("exit"), fill="#cfc8ac", font=("Segoe UI", 14))
+            self.draw_settlement(c)
 
     def format_time(self, seconds):
         total = int(seconds)
@@ -1808,6 +1834,51 @@ class MobaGame:
         skill_text = " / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r"))
         c.create_text(left + width - 22, top + 24, text=f"{self.text('equipment')}: {equipment_text}", fill="#d8cf9b", anchor="e", font=("Segoe UI", 10))
         c.create_text(left + width - 22, top + 54, text=skill_text, fill="#f7d765", anchor="e", font=("Segoe UI", 11, "bold"))
+
+    def draw_settlement(self, c):
+        self.settlement_buttons = []
+        blue_won = self.winner == "blue"
+        overlay = "#17291f" if blue_won else "#35191d"
+        left = 260
+        top = 116
+        right = WIDTH - 260
+        bottom = 586
+        c.create_rectangle(left, top, right, bottom, fill=overlay, outline="#f5f1d7", width=2)
+        c.create_text(WIDTH // 2, top + 34, text=self.text("settlement"), fill="#d8cf9b", font=("Segoe UI", 15, "bold"))
+        result_text = self.text("result_win") if blue_won else self.text("result_loss")
+        result_color = "#78a3ff" if blue_won else "#ff7b7c"
+        c.create_text(WIDTH // 2, top + 84, text=result_text, fill=result_color, font=("Segoe UI", 36, "bold"))
+        c.create_text(WIDTH // 2, top + 124, text=f"{self.text('duration')} {self.format_time(self.match_time)}", fill="#cfd6cd", font=("Segoe UI", 12))
+
+        self.draw_settlement_stats(c, self.player, left + 42, top + 162, "#78a3ff")
+        self.draw_settlement_stats(c, self.enemy_hero, WIDTH // 2 + 16, top + 162, "#ff7b7c")
+
+        self.draw_settlement_button(c, "rematch", WIDTH // 2 - 172, bottom - 72, 150, 44, "#d8cf9b")
+        self.draw_settlement_button(c, "lobby", WIDTH // 2 + 22, bottom - 72, 150, 44, "#78a3ff")
+
+    def draw_settlement_stats(self, c, hero, left, top, color):
+        width = 238
+        enemy_towers_destroyed = sum(1 for tower in self.towers if tower.team != hero.team and not tower.alive)
+        c.create_rectangle(left, top, left + width, top + 176, fill="#101416", outline=color, width=2)
+        name = self.hero_name(hero.hero_key)
+        if hero.team == "red":
+            name = self.text("enemy_prefix", name=name)
+        c.create_text(left + 18, top + 24, text=name, fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        lines = [
+            f"{self.text('level')} {hero.level}",
+            f"{self.text('kills')} {hero.kills} / {self.text('deaths')} {hero.deaths}",
+            f"{self.text('gold')} {hero.gold}",
+            f"{self.text('destroyed_towers')} {enemy_towers_destroyed}",
+            " / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r")),
+        ]
+        for index, line in enumerate(lines):
+            c.create_text(left + 18, top + 58 + index * 24, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+
+    def draw_settlement_button(self, c, action, x, y, width, height, color):
+        self.settlement_buttons.append((action, x, y, x + width, y + height))
+        label = self.text("rematch") if action == "rematch" else self.text("back_lobby")
+        c.create_rectangle(x, y, x + width, y + height, fill="#111719", outline=color, width=2)
+        c.create_text(x + width / 2, y + height / 2, text=label, fill="#f5f1d7", font=("Segoe UI", 12, "bold"))
 
     def draw_skill(self, c, x, y, label, ready_at, full_cd, size, skill_key=None):
         current = self.now()
