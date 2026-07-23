@@ -173,6 +173,12 @@ L10N = {
         "defeated": "{killer} defeated {victim}",
         "destroyed": "{name} destroyed",
         "level_up": "{name} reached Lv.{level}: HP +48, ATK +4, skills stronger",
+        "skill_point_gained": "Skill point gained",
+        "skill_upgraded": "{skill} upgraded to Lv.{level}",
+        "skill_locked": "{skill} unlocks at Lv.{level}",
+        "skill_max": "{skill} is maxed",
+        "skill_points": "Skill Points",
+        "locked": "LOCK",
         "need_base": "Return to base to buy equipment",
         "recall_start": "Recalling...",
         "recall_cancel": "Recall interrupted",
@@ -244,6 +250,12 @@ L10N = {
         "defeated": "{killer} 击败了 {victim}",
         "destroyed": "{name} 被摧毁",
         "level_up": "{name} 升到 {level} 级：生命+48 攻击+4 技能更强",
+        "skill_point_gained": "获得技能点",
+        "skill_upgraded": "{skill} 升到 {level} 级",
+        "skill_locked": "{skill} 需要 {level} 级解锁",
+        "skill_max": "{skill} 已满级",
+        "skill_points": "技能点",
+        "locked": "未解锁",
         "need_base": "回到己方水晶附近才能购买",
         "recall_start": "正在回城...",
         "recall_cancel": "回城被打断",
@@ -324,6 +336,8 @@ class Hero(Unit):
     equipment: dict = field(default_factory=lambda: {"blade": 0, "boots": 0, "guard": 0})
     respawn_at: float = 0
     cooldowns: dict = field(default_factory=lambda: {"q": 0, "e": 0, "r": 0})
+    skill_levels: dict = field(default_factory=lambda: {"q": 1, "e": 1, "r": 0})
+    skill_points: int = 0
 
 
 @dataclass

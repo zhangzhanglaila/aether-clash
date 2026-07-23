@@ -28,6 +28,10 @@ from game_data import (
 )
 
 
+SKILL_MAX_LEVELS = {"q": 6, "e": 6, "r": 3}
+SKILL_UPGRADE_KEYS = {"z": "q", "x": "e", "c": "r"}
+
+
 class MobaGame:
     def __init__(self):
         self.root = tk.Tk()
@@ -70,6 +74,7 @@ class MobaGame:
         self.lobby_buttons = []
         self.mode_cards = []
         self.hero_cards = []
+        self.skill_upgrade_buttons = []
         self.loading_started_at = 0
         self.selected_mode_key = None
         self.selected_hero_key = None
@@ -188,6 +193,7 @@ class MobaGame:
         self.float_texts = []
         self.banners = []
         self.shop_cards = []
+        self.skill_upgrade_buttons = []
 
     def apply_starting_level(self, hero, level):
         for _ in range(max(0, level - 1)):
@@ -274,12 +280,15 @@ class MobaGame:
             return
 
         if self.state == "playing" and self.recalling:
-            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "f", "g", "space", "1", "2", "3"}:
+            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "f", "g", "space", "1", "2", "3", "z", "x", "c"}:
                 self.cancel_recall()
             return
 
         if self.state == "playing" and key == "b":
             self.start_recall()
+            return
+        if self.state == "playing" and key in SKILL_UPGRADE_KEYS:
+            self.upgrade_skill(self.player, SKILL_UPGRADE_KEYS[key])
             return
         if self.state == "playing" and key in {"q", "e", "r"}:
             self.start_aiming_skill(key)
@@ -324,6 +333,8 @@ class MobaGame:
             return
         if self.state == "playing" and self.recalling:
             self.cancel_recall()
+            return
+        if self.state == "playing" and self.select_skill_upgrade_at(self.mouse_x, self.mouse_y):
             return
         if self.state == "playing" and self.aiming_skill:
             self.cast_aiming_skill()
@@ -834,14 +845,91 @@ class MobaGame:
         self.unit_attack(hero, target)
 
     def skill_ready(self, hero, key):
+        if not self.skill_unlocked(hero, key):
+            return False
         current = self.now()
         if not hero.alive or current < hero.cooldowns[key]:
             return False
-        hero.cooldowns[key] = current + hero.skill_cds[key]
+        cooldown = self.skill_cooldown(hero, key)
+        hero.skill_cds[key] = cooldown
+        hero.cooldowns[key] = current + cooldown
         return True
 
     def skill_available(self, hero, key):
-        return hero.alive and self.now() >= hero.cooldowns[key]
+        return hero.alive and self.skill_unlocked(hero, key) and self.now() >= hero.cooldowns[key]
+
+    def skill_unlocked(self, hero, key):
+        return hero.skill_levels.get(key, 0) > 0
+
+    def max_skill_level_for_hero_level(self, hero, key):
+        if key == "r":
+            if hero.level >= 12:
+                return 3
+            if hero.level >= 8:
+                return 2
+            if hero.level >= 4:
+                return 1
+            return 0
+        return min(SKILL_MAX_LEVELS[key], 1 + hero.level // 2)
+
+    def next_skill_unlock_level(self, key, current_level):
+        if key == "r":
+            unlocks = [4, 8, 12]
+            return unlocks[min(current_level, len(unlocks) - 1)]
+        return max(2, current_level * 2)
+
+    def can_upgrade_skill(self, hero, key):
+        return (
+            hero.alive
+            and hero.skill_points > 0
+            and hero.skill_levels.get(key, 0) < self.max_skill_level_for_hero_level(hero, key)
+            and hero.skill_levels.get(key, 0) < SKILL_MAX_LEVELS[key]
+        )
+
+    def skill_cooldown(self, hero, key):
+        base_cd = HEROES[hero.hero_key]["cooldowns"][key]
+        level = max(1, hero.skill_levels.get(key, 0))
+        return max(base_cd * 0.72, base_cd * (1 - 0.055 * (level - 1)))
+
+    def skill_level_multiplier(self, hero, key):
+        level = max(1, hero.skill_levels.get(key, 0))
+        return 1 + 0.16 * (level - 1)
+
+    def upgrade_skill(self, hero, key, silent=False):
+        if hero.skill_points <= 0:
+            return False
+        current_level = hero.skill_levels.get(key, 0)
+        allowed_level = self.max_skill_level_for_hero_level(hero, key)
+        skill_name = self.hero_skill(hero.hero_key, key)
+        if current_level >= SKILL_MAX_LEVELS[key]:
+            if not silent and hero.team == "blue":
+                self.show_message(self.text("skill_max", skill=skill_name))
+            return False
+        if current_level >= allowed_level:
+            if not silent and hero.team == "blue":
+                unlock_level = self.next_skill_unlock_level(key, current_level)
+                self.show_message(self.text("skill_locked", skill=skill_name, level=unlock_level))
+            return False
+        hero.skill_points -= 1
+        hero.skill_levels[key] = current_level + 1
+        hero.skill_cds[key] = self.skill_cooldown(hero, key)
+        if not silent and hero.team == "blue":
+            text = self.text("skill_upgraded", skill=skill_name, level=hero.skill_levels[key])
+            self.show_message(text)
+            self.spawn_banner(text, hero.accent, ttl=1.15)
+        return True
+
+    def auto_upgrade_skills(self, hero):
+        for key in ("r", "q", "e"):
+            while self.can_upgrade_skill(hero, key):
+                self.upgrade_skill(hero, key, silent=True)
+                break
+
+    def select_skill_upgrade_at(self, x, y):
+        for skill_key, left, top, right, bottom in self.skill_upgrade_buttons:
+            if left <= x <= right and top <= y <= bottom:
+                return self.upgrade_skill(self.player, skill_key)
+        return False
 
     def aim_vector(self, hero):
         vx, vy = norm(self.mouse_x - hero.x, self.mouse_y - hero.y)
@@ -854,10 +942,11 @@ class MobaGame:
             if target.alive and dist_xy(x, y, target.x, target.y) <= radius + target.radius:
                 self.apply_damage(target, amount, team)
 
-    def skill_damage(self, hero, base, multiplier=1.0):
+    def skill_damage(self, hero, base, multiplier=1.0, skill_key=None):
         base_attack = HEROES[hero.hero_key]["attack_damage"]
         attack_bonus = max(0, hero.attack_damage - base_attack)
-        return base * multiplier + (hero.level - 1) * 8 * multiplier + attack_bonus * 0.45 * multiplier
+        skill_bonus = self.skill_level_multiplier(hero, skill_key) if skill_key else 1
+        return (base * multiplier + (hero.level - 1) * 8 * multiplier + attack_bonus * 0.45 * multiplier) * skill_bonus
 
     def spawn_particles(self, x, y, color, count=10, speed=120, spread=1.0, radius=3, ttl=0.45):
         for _ in range(count):
@@ -907,7 +996,13 @@ class MobaGame:
         self.banners.append(Banner(text, color, ttl, ttl))
 
     def start_aiming_skill(self, skill_key):
-        if self.state != "playing" or not self.skill_available(self.player, skill_key):
+        if self.state != "playing":
+            return
+        if not self.skill_unlocked(self.player, skill_key):
+            unlock_level = 4 if skill_key == "r" else 1
+            self.show_message(self.text("skill_locked", skill=self.hero_skill(self.player.hero_key, skill_key), level=unlock_level))
+            return
+        if not self.skill_available(self.player, skill_key):
             return
         self.aiming_skill = skill_key
 
@@ -978,16 +1073,16 @@ class MobaGame:
         self.spawn_cast_fx(hero, "q")
         if hero.hero_key == "sentinel":
             self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=76, ttl=0.34)
-            self.damage_area(hero.team, hero.x, hero.y, 72, self.skill_damage(hero, 68))
+            self.damage_area(hero.team, hero.x, hero.y, 72, self.skill_damage(hero, 68, skill_key="q"))
             self.projectiles.append(
-                Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 54), 310, vx=vx, vy=vy, radius=14, pierce=True, ttl=0.85, color=hero.accent)
+                Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 54, skill_key="q"), 310, vx=vx, vy=vy, radius=14, pierce=True, ttl=0.85, color=hero.accent)
             )
             return
 
         if hero.hero_key == "shade":
             self.spawn_beam(hero.x, hero.y, hero.x + vx * 165, hero.y + vy * 165, hero.accent, width=6, ttl=0.13)
             self.projectiles.append(
-                Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 92), 560, vx=vx, vy=vy, radius=9, pierce=False, ttl=0.62, color=hero.accent)
+                Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 92, skill_key="q"), 560, vx=vx, vy=vy, radius=9, pierce=False, ttl=0.62, color=hero.accent)
             )
             return
 
@@ -1002,7 +1097,7 @@ class MobaGame:
                         hero.x,
                         hero.y,
                         hero.team,
-                        self.skill_damage(hero, 46),
+                        self.skill_damage(hero, 46, skill_key="q"),
                         520,
                         vx=ax,
                         vy=ay,
@@ -1021,7 +1116,7 @@ class MobaGame:
                     hero.x,
                     hero.y,
                     hero.team,
-                    self.skill_damage(hero, 96),
+                    self.skill_damage(hero, 96, skill_key="q"),
                     360,
                     vx=vx,
                     vy=vy,
@@ -1034,7 +1129,7 @@ class MobaGame:
             return
 
         self.projectiles.append(
-            Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 82), 430, vx=vx, vy=vy, radius=11, pierce=True, ttl=0.95, color=hero.accent)
+            Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 82, skill_key="q"), 430, vx=vx, vy=vy, radius=11, pierce=True, ttl=0.95, color=hero.accent)
         )
         self.spawn_beam(hero.x, hero.y, hero.x + vx * 140, hero.y + vy * 140, hero.accent, width=4, ttl=0.14)
 
@@ -1044,7 +1139,7 @@ class MobaGame:
         vx, vy = self.aim_vector(hero)
         self.spawn_cast_fx(hero, "e")
         if hero.hero_key == "sentinel":
-            hero.hp = min(hero.max_hp, hero.hp + 140)
+            hero.hp = min(hero.max_hp, hero.hp + 140 * self.skill_level_multiplier(hero, "e"))
             hero.next_attack = 0
             self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=94, ttl=0.36)
             self.spawn_particles(hero.x, hero.y, hero.accent, count=18, speed=90, spread=0.9, radius=3.0, ttl=0.36)
@@ -1052,8 +1147,8 @@ class MobaGame:
 
         if hero.hero_key == "arcanist":
             self.spawn_beam(hero.x, hero.y, hero.x, hero.y, hero.accent, width=8, ttl=0.2)
-            hero.hp = min(hero.max_hp, hero.hp + 95)
-            self.damage_area(hero.team, hero.x, hero.y, 82, self.skill_damage(hero, 54))
+            hero.hp = min(hero.max_hp, hero.hp + 95 * self.skill_level_multiplier(hero, "e"))
+            self.damage_area(hero.team, hero.x, hero.y, 82, self.skill_damage(hero, 54, skill_key="e"))
             self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
             return
 
@@ -1066,7 +1161,7 @@ class MobaGame:
             hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
             hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
             self.spawn_beam(old_x, old_y, hero.x, hero.y, hero.accent, width=7, ttl=0.18)
-            self.damage_area(hero.team, hero.x, hero.y, 54, self.skill_damage(hero, 72))
+            self.damage_area(hero.team, hero.x, hero.y, 54, self.skill_damage(hero, 72, skill_key="e"))
             self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
             return
 
@@ -1078,7 +1173,7 @@ class MobaGame:
             hero.next_attack = 0
             self.spawn_hit_fx(hero.x, hero.y, hero.accent)
         else:
-            self.damage_area(hero.team, hero.x, hero.y, 52, self.skill_damage(hero, 42))
+            self.damage_area(hero.team, hero.x, hero.y, 52, self.skill_damage(hero, 42, skill_key="e"))
             self.spawn_hit_fx(hero.x, hero.y, hero.accent)
 
     def cast_r(self, hero):
@@ -1094,7 +1189,7 @@ class MobaGame:
             self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=148, ttl=0.55)
             self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=30, speed=165, spread=1.35, radius=3.4, ttl=0.48)
             self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=8, ttl=0.2)
-            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 136, self.skill_damage(hero, 154, 1.35), include_cores=True)
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 136, self.skill_damage(hero, 154, 1.35, skill_key="r"), include_cores=True)
             return
 
         if hero.hero_key == "shade":
@@ -1107,7 +1202,7 @@ class MobaGame:
             hero.y = clamp(ty - 18, 35, HEIGHT - 35)
             self.spawn_ring(tx, ty, hero.accent, base_radius=88, ttl=0.32)
             self.spawn_particles(tx, ty, hero.accent, count=28, speed=220, spread=1.25, radius=3.2, ttl=0.38)
-            self.damage_area(hero.team, tx, ty, 78, self.skill_damage(hero, 188, 1.5), include_cores=False)
+            self.damage_area(hero.team, tx, ty, 78, self.skill_damage(hero, 188, 1.5, skill_key="r"), include_cores=False)
             return
 
         if hero.hero_key == "ranger":
@@ -1122,7 +1217,7 @@ class MobaGame:
                         hero.x,
                         hero.y,
                         hero.team,
-                        self.skill_damage(hero, 42, 1.3),
+                        self.skill_damage(hero, 42, 1.3, skill_key="r"),
                         500,
                         vx=math.cos(angle + offset),
                         vy=math.sin(angle + offset),
@@ -1139,23 +1234,24 @@ class MobaGame:
             self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=7, ttl=0.22)
             self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=130, ttl=0.55)
             self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=28, speed=210, spread=1.4, radius=3.2, ttl=0.42)
-            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176, 1.45), include_cores=True)
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176, 1.45, skill_key="r"), include_cores=True)
             return
 
         self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=6, ttl=0.18)
         self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=112, ttl=0.48)
         self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=20, speed=190, spread=1.25, radius=3.0, ttl=0.36)
-        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 148, 1.45), include_cores=True)
+        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 148, 1.45, skill_key="r"), include_cores=True)
 
     def cast_ai_bolt(self, hero, target):
-        hero.cooldowns["q"] = self.now() + 4.2
+        if not self.skill_ready(hero, "q"):
+            return
         vx, vy = norm(target.x - hero.x, target.y - hero.y)
         self.projectiles.append(
             Projectile(
                 hero.x,
                 hero.y,
                 hero.team,
-                self.skill_damage(hero, 64),
+                self.skill_damage(hero, 64, skill_key="q"),
                 385,
                 vx=vx,
                 vy=vy,
@@ -1186,17 +1282,21 @@ class MobaGame:
 
     def level_up(self, hero, silent=False):
         hero.level += 1
+        hero.skill_points += 1
         hero.next_xp = int(hero.next_xp * 1.32)
         hero.max_hp += 48
         hero.hp = min(hero.max_hp, hero.hp + 48)
         hero.attack_damage += 4
         hero.attack_range += 3
+        if hero.team == "red":
+            self.auto_upgrade_skills(hero)
         self.spawn_particles(hero.x, hero.y, hero.accent, count=22, speed=170, spread=1.1, radius=3.0, ttl=0.42)
         self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=62, ttl=0.32)
         if not silent and hero.team == "blue":
             text = self.text("level_up", name=self.hero_name(hero.hero_key), level=hero.level)
             self.show_message(text)
             self.spawn_banner(text, hero.accent, ttl=1.4)
+            self.spawn_floating_text(hero.x, hero.y - 42, self.text("skill_point_gained"), "#f7d765", ttl=1.0)
 
     def apply_damage(self, target, amount, attacker_team):
         if isinstance(target, (Tower, Core)):
@@ -1558,6 +1658,7 @@ class MobaGame:
         self.draw_bar(c, x - 32, y + 14, 74, hero.hp, hero.max_hp, "#48d06b")
 
     def draw_ui(self, c):
+        self.skill_upgrade_buttons = []
         c.create_rectangle(0, 0, WIDTH, 50, fill="#0d1215", outline="")
         c.create_rectangle(398, 7, 702, 43, fill="#151b1e", outline="#394043", width=2)
         c.create_text(438, 25, text=str(self.player.kills), fill="#78a3ff", font=("Segoe UI", 16, "bold"))
@@ -1569,6 +1670,8 @@ class MobaGame:
         xp_pct = clamp(self.player.xp / self.player.next_xp, 0, 1)
         c.create_rectangle(24, 43, 300, 47, fill="#252a2a", outline="")
         c.create_rectangle(24, 43, 24 + 276 * xp_pct, 47, fill="#b38cff", outline="")
+        if self.player.skill_points > 0:
+            c.create_text(720, 25, text=f"{self.text('skill_points')} {self.player.skill_points}", fill="#f7d765", anchor="w", font=("Segoe UI", 12, "bold"))
         c.create_text(WIDTH - 24, 23, text=self.text("red"), fill="#ff7b7c", anchor="e", font=("Segoe UI", 13, "bold"))
 
         self.draw_minimap(c)
@@ -1576,9 +1679,9 @@ class MobaGame:
         self.draw_skill_preview(c)
         self.draw_skill(c, WIDTH - 226, HEIGHT - 92, "F", self.summoner_cooldowns["f"], self.summoner_cd_durations["f"], 40)
         self.draw_skill(c, WIDTH - 226, HEIGHT - 154, "G", self.summoner_cooldowns["g"], self.summoner_cd_durations["g"], 40)
-        self.draw_skill(c, WIDTH - 112, HEIGHT - 92, "Q", self.player.cooldowns["q"], self.player.skill_cds["q"], 46)
-        self.draw_skill(c, WIDTH - 58, HEIGHT - 154, "E", self.player.cooldowns["e"], self.player.skill_cds["e"], 46)
-        self.draw_skill(c, WIDTH - 172, HEIGHT - 154, "R", self.player.cooldowns["r"], self.player.skill_cds["r"], 52)
+        self.draw_skill(c, WIDTH - 112, HEIGHT - 92, "Q", self.player.cooldowns["q"], self.skill_cooldown(self.player, "q"), 46, "q")
+        self.draw_skill(c, WIDTH - 58, HEIGHT - 154, "E", self.player.cooldowns["e"], self.skill_cooldown(self.player, "e"), 46, "e")
+        self.draw_skill(c, WIDTH - 172, HEIGHT - 154, "R", self.player.cooldowns["r"], self.skill_cooldown(self.player, "r"), 52, "r")
         self.draw_skill(c, WIDTH - 58, HEIGHT - 70, "A", self.player.next_attack, self.player.attack_cd, 42)
 
         if self.now() < self.message_until:
@@ -1667,14 +1770,15 @@ class MobaGame:
             price = "MAX" if maxed else f"G {cost}"
             c.create_text(WIDTH - 50, y1 + 19, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 10, "bold"))
 
-    def draw_skill(self, c, x, y, label, ready_at, full_cd, size):
+    def draw_skill(self, c, x, y, label, ready_at, full_cd, size, skill_key=None):
         current = self.now()
-        ready = current >= ready_at
+        locked = skill_key is not None and not self.skill_unlocked(self.player, skill_key)
+        ready = current >= ready_at and not locked
         fill = "#26313a" if ready else "#171b20"
         r = size // 2
         c.create_oval(x - r - 4, y - r - 4, x + r + 4, y + r + 4, fill="#0d1215", outline="#394043", width=2)
         c.create_oval(x - r, y - r, x + r, y + r, fill=fill, outline="#d8cf9b", width=2)
-        if not ready:
+        if not ready and not locked:
             left = ready_at - current
             pct = clamp(left / full_cd, 0, 1)
             c.create_arc(
@@ -1688,8 +1792,20 @@ class MobaGame:
                 outline="",
             )
         c.create_text(x, y, text=label, fill="#f5f1d7", font=("Segoe UI", 15, "bold"))
-        if not ready:
+        if locked:
+            c.create_text(x, y + 25, text=self.text("locked"), fill="#ffb0aa", font=("Segoe UI", 8, "bold"))
+        elif not ready:
             c.create_text(x, y + 25, text=f"{left:.1f}", fill="#ffffff", font=("Segoe UI", 8, "bold"))
+        if skill_key is not None:
+            level = self.player.skill_levels.get(skill_key, 0)
+            max_level = SKILL_MAX_LEVELS[skill_key]
+            c.create_text(x, y + r + 18, text=f"Lv {level}/{max_level}", fill="#cfd6cd", font=("Segoe UI", 8, "bold"))
+            if self.can_upgrade_skill(self.player, skill_key):
+                px = x + r - 5
+                py = y - r - 17
+                self.skill_upgrade_buttons.append((skill_key, px - 10, py - 10, px + 10, py + 10))
+                c.create_oval(px - 10, py - 10, px + 10, py + 10, fill="#f7d765", outline="#101416", width=2)
+                c.create_text(px, py - 1, text="+", fill="#101416", font=("Segoe UI", 13, "bold"))
 
 
 if __name__ == "__main__":
