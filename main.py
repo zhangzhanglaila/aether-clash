@@ -695,10 +695,10 @@ class MobaGame:
             if target.alive and dist_xy(x, y, target.x, target.y) <= radius + target.radius:
                 self.apply_damage(target, amount, team)
 
-    def skill_damage(self, hero, base):
+    def skill_damage(self, hero, base, multiplier=1.0):
         base_attack = HEROES[hero.hero_key]["attack_damage"]
         attack_bonus = max(0, hero.attack_damage - base_attack)
-        return base + (hero.level - 1) * 8 + attack_bonus * 0.45
+        return base * multiplier + (hero.level - 1) * 8 * multiplier + attack_bonus * 0.45 * multiplier
 
     def cast_q(self, hero):
         if not self.skill_ready(hero, "q"):
@@ -785,7 +785,7 @@ class MobaGame:
                         hero.x,
                         hero.y,
                         hero.team,
-                        self.skill_damage(hero, 42),
+                        self.skill_damage(hero, 42, 1.3),
                         500,
                         vx=math.cos(angle + offset),
                         vy=math.sin(angle + offset),
@@ -800,11 +800,11 @@ class MobaGame:
 
         if hero.hero_key == "arcanist":
             self.effects.append(Effect(self.mouse_x, self.mouse_y, 14, 130, hero.accent, 0.55, 0.55))
-            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176), include_cores=True)
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176, 1.45), include_cores=True)
             return
 
-        self.effects.append(Effect(self.mouse_x, self.mouse_y, 10, 106, hero.accent, 0.45, 0.45))
-        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 148), include_cores=True)
+        self.effects.append(Effect(self.mouse_x, self.mouse_y, 10, 112, hero.accent, 0.48, 0.48))
+        self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 148, 1.45), include_cores=True)
 
     def cast_ai_bolt(self, hero, target):
         hero.cooldowns["q"] = self.now() + 4.2
