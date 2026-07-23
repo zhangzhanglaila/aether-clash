@@ -54,6 +54,8 @@ class MobaGame:
         self.recalling = False
         self.recall_elapsed = 0.0
         self.recall_duration = 3.0
+        self.summoner_cooldowns = {"f": 0, "g": 0}
+        self.summoner_cd_durations = {"f": 12.0, "g": 18.0}
 
         self.paths = {
             "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],
@@ -143,6 +145,7 @@ class MobaGame:
         self.message = ""
         self.recalling = False
         self.recall_elapsed = 0.0
+        self.summoner_cooldowns = {"f": 0, "g": 0}
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
         self.enemy_hero.name = "Red Vanguard"
@@ -259,15 +262,17 @@ class MobaGame:
             return
 
         if self.state == "select":
-            if key in {"1", "2", "3"}:
-                hero_key = list(HEROES.keys())[int(key) - 1]
-                self.choose_hero(hero_key)
+            if key.isdigit():
+                hero_keys = list(HEROES.keys())
+                index = int(key) - 1
+                if 0 <= index < len(hero_keys):
+                    self.choose_hero(hero_keys[index])
             elif key == "escape":
                 self.root.destroy()
             return
 
         if self.state == "playing" and self.recalling:
-            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "space", "1", "2", "3"}:
+            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "f", "g", "space", "1", "2", "3"}:
                 self.cancel_recall()
             return
 
@@ -281,6 +286,10 @@ class MobaGame:
             self.cast_e(self.player)
         elif key == "r":
             self.cast_r(self.player)
+        elif key == "f":
+            self.cast_flash()
+        elif key == "g":
+            self.cast_heal()
         elif key in {"1", "2", "3"}:
             item_key = list(ITEMS.keys())[int(key) - 1]
             self.buy_item(item_key)
@@ -407,6 +416,35 @@ class MobaGame:
         self.spawn_banner(text, "#76f4d1", ttl=1.2)
         self.spawn_particles(self.player.x, self.player.y, "#76f4d1", count=18, speed=150, spread=1.0, radius=3.2, ttl=0.38)
         self.spawn_ring(self.player.x, self.player.y, "#76f4d1", base_radius=92, ttl=0.34)
+
+    def summoner_ready(self, key):
+        return self.now() >= self.summoner_cooldowns[key]
+
+    def cast_flash(self):
+        if self.state != "playing" or not self.player.alive or not self.summoner_ready("f"):
+            return
+        self.summoner_cooldowns["f"] = self.now() + self.summoner_cd_durations["f"]
+        old_x, old_y = self.player.x, self.player.y
+        vx, vy = self.aim_vector(self.player)
+        distance = 170
+        self.player.x = clamp(self.player.x + vx * distance, 35, WIDTH - 35)
+        self.player.y = clamp(self.player.y + vy * distance, 35, HEIGHT - 35)
+        self.spawn_beam(old_x, old_y, self.player.x, self.player.y, "#f5f1d7", width=7, ttl=0.18)
+        self.spawn_particles(old_x, old_y, "#f5f1d7", count=14, speed=130, spread=1.0, radius=2.8, ttl=0.32)
+        self.spawn_particles(self.player.x, self.player.y, "#f5f1d7", count=18, speed=150, spread=1.15, radius=3.0, ttl=0.36)
+        self.spawn_ring(self.player.x, self.player.y, "#f5f1d7", base_radius=54, ttl=0.24)
+        self.show_message(self.text("flash"))
+
+    def cast_heal(self):
+        if self.state != "playing" or not self.player.alive or not self.summoner_ready("g"):
+            return
+        self.summoner_cooldowns["g"] = self.now() + self.summoner_cd_durations["g"]
+        amount = self.player.max_hp * 0.32
+        self.player.hp = min(self.player.max_hp, self.player.hp + amount)
+        self.spawn_particles(self.player.x, self.player.y, "#48d06b", count=22, speed=135, spread=1.05, radius=3.0, ttl=0.42)
+        self.spawn_ring(self.player.x, self.player.y, "#48d06b", base_radius=76, ttl=0.34)
+        self.spawn_floating_text(self.player.x, self.player.y - 24, f"+{int(amount)}", "#48d06b", ttl=0.75)
+        self.show_message(self.text("heal"))
 
     def buy_item(self, item_key):
         if self.state != "playing":
@@ -1245,7 +1283,7 @@ class MobaGame:
             outline = config["accent"] if active else "#394043"
             c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=outline, width=3)
             c.create_rectangle(left, top, right, top + 52, fill="#161c1f", outline="")
-            c.create_text(left + 20, top + 19, text=self.hero_name(hero_key), fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
+            c.create_text(left + 20, top + 19, text=f"{index + 1}. {self.hero_name(hero_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
             c.create_text(left + 20, top + 40, text=self.hero_role(hero_key), fill=config["accent"], anchor="w", font=("Segoe UI", 10, "bold"))
             self.draw_hero_icon(c, left + 244, top + 86, config)
 
@@ -1457,6 +1495,8 @@ class MobaGame:
 
         self.draw_minimap(c)
         self.draw_virtual_stick(c)
+        self.draw_skill(c, WIDTH - 226, HEIGHT - 92, "F", self.summoner_cooldowns["f"], self.summoner_cd_durations["f"], 40)
+        self.draw_skill(c, WIDTH - 226, HEIGHT - 154, "G", self.summoner_cooldowns["g"], self.summoner_cd_durations["g"], 40)
         self.draw_skill(c, WIDTH - 112, HEIGHT - 92, "Q", self.player.cooldowns["q"], self.player.skill_cds["q"], 46)
         self.draw_skill(c, WIDTH - 58, HEIGHT - 154, "E", self.player.cooldowns["e"], self.player.skill_cds["e"], 46)
         self.draw_skill(c, WIDTH - 172, HEIGHT - 154, "R", self.player.cooldowns["r"], self.player.skill_cds["r"], 52)
