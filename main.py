@@ -61,6 +61,7 @@ class MobaGame:
         self.summoner_cooldowns = {"f": 0, "g": 0}
         self.summoner_cd_durations = {"f": 12.0, "g": 18.0}
         self.aiming_skill = None
+        self.show_scoreboard = False
 
         self.paths = {
             "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],
@@ -153,6 +154,7 @@ class MobaGame:
         self.recall_elapsed = 0.0
         self.summoner_cooldowns = {"f": 0, "g": 0}
         self.aiming_skill = None
+        self.show_scoreboard = False
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
         self.enemy_hero.name = "Red Vanguard"
@@ -248,6 +250,9 @@ class MobaGame:
 
     def on_key_press(self, event):
         key = event.keysym.lower()
+        if self.state == "playing" and key == "tab":
+            self.show_scoreboard = True
+            return
         if self.state == "language":
             if key in {"1", "c"}:
                 self.choose_language("zh")
@@ -309,6 +314,9 @@ class MobaGame:
 
     def on_key_release(self, event):
         key = event.keysym.lower()
+        if key == "tab":
+            self.show_scoreboard = False
+            return
         if self.state == "playing" and key == self.aiming_skill:
             self.cast_aiming_skill()
         self.keys.discard(event.keysym.lower())
@@ -760,6 +768,7 @@ class MobaGame:
                 hero.respawn_at = self.now() + 5
                 killer = self.enemy_hero if hero.team == "blue" else self.player
                 killer.kills += 1
+                hero.deaths += 1
                 killer.gold += 80
                 if killer.team == "red":
                     self.gain_xp(killer, 120)
@@ -1693,6 +1702,9 @@ class MobaGame:
         if self.near_shop():
             self.draw_shop(c)
 
+        if self.show_scoreboard:
+            self.draw_scoreboard(c)
+
         if self.match_over:
             overlay = "#17291f" if self.winner == "blue" else "#35191d"
             c.create_rectangle(300, 248, 800, 452, fill=overlay, outline="#f5f1d7", width=2)
@@ -1769,6 +1781,33 @@ class MobaGame:
             c.create_text(WIDTH - 118, y1 + 19, text=f"Lv {current_level}/{item['max_stacks']}", fill="#cfd6cd", anchor="e", font=("Segoe UI", 10))
             price = "MAX" if maxed else f"G {cost}"
             c.create_text(WIDTH - 50, y1 + 19, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 10, "bold"))
+
+    def draw_scoreboard(self, c):
+        left = 218
+        top = 112
+        right = WIDTH - 218
+        bottom = 402
+        c.create_rectangle(left, top, right, bottom, fill="#0d1215", outline="#d8cf9b", width=2)
+        c.create_rectangle(left, top, right, top + 48, fill="#151b1e", outline="")
+        c.create_text(WIDTH // 2, top + 24, text=self.text("scoreboard"), fill="#f5f1d7", font=("Segoe UI", 18, "bold"))
+        self.draw_scoreboard_row(c, self.player, left + 28, top + 78, right - left - 56, "#78a3ff")
+        self.draw_scoreboard_row(c, self.enemy_hero, left + 28, top + 188, right - left - 56, "#ff7b7c")
+
+    def draw_scoreboard_row(self, c, hero, left, top, width, color):
+        c.create_rectangle(left, top, left + width, top + 82, fill="#111719", outline=color, width=2)
+        c.create_oval(left + 18, top + 18, left + 58, top + 58, fill=hero.accent, outline="#f5f1d7", width=2)
+        c.create_text(left + 38, top + 38, text=str(hero.level), fill="#101416", font=("Segoe UI", 14, "bold"))
+        name = self.hero_name(hero.hero_key)
+        if hero.team == "red":
+            name = self.text("enemy_prefix", name=name)
+        c.create_text(left + 74, top + 20, text=f"{name} / {self.hero_role(hero.hero_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        stat_text = f"{self.text('kills')} {hero.kills}   {self.text('deaths')} {hero.deaths}   {self.text('gold')} {hero.gold}"
+        c.create_text(left + 74, top + 48, text=stat_text, fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+
+        equipment_text = " / ".join(f"{self.item_name(key)} {level}" for key, level in hero.equipment.items())
+        skill_text = " / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r"))
+        c.create_text(left + width - 22, top + 24, text=f"{self.text('equipment')}: {equipment_text}", fill="#d8cf9b", anchor="e", font=("Segoe UI", 10))
+        c.create_text(left + width - 22, top + 54, text=skill_text, fill="#f7d765", anchor="e", font=("Segoe UI", 11, "bold"))
 
     def draw_skill(self, c, x, y, label, ready_at, full_cd, size, skill_key=None):
         current = self.now()
