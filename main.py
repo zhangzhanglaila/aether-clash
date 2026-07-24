@@ -54,6 +54,7 @@ class MobaGame:
         self.mouse_y = HEIGHT // 2
         self.last_time = time.perf_counter()
         self.spawn_timer = 0
+        self.wave_index = 0
         self.enemy_xp_timer = 0
         self.match_over = False
         self.winner = None
@@ -123,6 +124,9 @@ class MobaGame:
     def item_name(self, item_key):
         return L10N[self.language]["items"][item_key]
 
+    def lane_name(self, lane):
+        return L10N[self.language]["lanes"][lane]
+
     def jungle_name(self, camp_key):
         return L10N[self.language]["jungle"][camp_key]
 
@@ -156,6 +160,7 @@ class MobaGame:
         self.match_over = False
         self.winner = None
         self.spawn_timer = 0
+        self.wave_index = 0
         self.match_time = 0
         self.message_until = 0
         self.message = ""
@@ -224,16 +229,16 @@ class MobaGame:
 
     def make_towers(self):
         data = [
-            ("blue", "top", 120, 330),
-            ("blue", "top", 310, 148),
-            ("red", "top", 810, 146),
-            ("red", "top", 970, 255),
-            ("blue", "mid", 280, 510),
-            ("red", "mid", 820, 190),
-            ("blue", "bot", 290, 565),
-            ("blue", "bot", 540, 565),
-            ("red", "bot", 885, 500),
-            ("red", "bot", 980, 335),
+            ("blue", "top", "base", 120, 330),
+            ("blue", "top", "outer", 310, 148),
+            ("red", "top", "outer", 810, 146),
+            ("red", "top", "base", 970, 255),
+            ("blue", "mid", "base", 280, 510),
+            ("red", "mid", "base", 820, 190),
+            ("blue", "bot", "base", 290, 565),
+            ("blue", "bot", "outer", 540, 565),
+            ("red", "bot", "outer", 885, 500),
+            ("red", "bot", "base", 980, 335),
         ]
         return [
             Tower(
@@ -247,9 +252,10 @@ class MobaGame:
                 attack_range=180,
                 attack_cd=0.85,
                 lane=lane,
+                tier=tier,
                 name=f"{team.title()} {lane.title()} Tower",
             )
-            for team, lane, x, y in data
+            for team, lane, tier, x, y in data
         ]
 
     def make_neutral_monsters(self):
@@ -610,43 +616,49 @@ class MobaGame:
         self.check_winner()
 
     def spawn_wave(self):
+        self.wave_index += 1
         for lane in self.paths:
             blue_path = self.paths[lane]
             red_path = list(reversed(blue_path))
-            for i in range(3):
+            formation = [("melee", -22), ("melee", 0), ("ranged", 22)]
+            if self.wave_index % 3 == 0:
+                formation.append(("siege", 46))
+            for kind, offset in formation:
                 bx, by = blue_path[0]
                 rx, ry = red_path[0]
-                offset = (i - 1) * 18
-                self.minions.append(
-                    Minion(
-                        bx + random.uniform(-6, 6),
-                        by + offset,
-                        "blue",
-                        120,
-                        120,
-                        10,
-                        68,
-                        14,
-                        60,
-                        1.15,
-                        lane=lane,
-                    )
-                )
-                self.minions.append(
-                    Minion(
-                        rx + random.uniform(-6, 6),
-                        ry - offset,
-                        "red",
-                        120,
-                        120,
-                        10,
-                        68,
-                        14,
-                        60,
-                        1.15,
-                        lane=lane,
-                    )
-                )
+                self.minions.append(self.make_minion("blue", lane, bx + random.uniform(-6, 6), by + offset, kind, self.lane_empowered("blue", lane)))
+                self.minions.append(self.make_minion("red", lane, rx + random.uniform(-6, 6), ry - offset, kind, self.lane_empowered("red", lane)))
+
+    def lane_empowered(self, team, lane):
+        enemy_team = "red" if team == "blue" else "blue"
+        return any(tower.team == enemy_team and tower.lane == lane and tower.tier == "base" and not tower.alive for tower in self.towers)
+
+    def make_minion(self, team, lane, x, y, kind, empowered=False):
+        stats = {
+            "melee": {"hp": 142, "radius": 10, "speed": 68, "attack_damage": 15, "attack_range": 60, "attack_cd": 1.08, "gold": 8, "xp": 28},
+            "ranged": {"hp": 98, "radius": 9, "speed": 66, "attack_damage": 14, "attack_range": 145, "attack_cd": 1.24, "gold": 10, "xp": 32},
+            "siege": {"hp": 240, "radius": 13, "speed": 54, "attack_damage": 31, "attack_range": 190, "attack_cd": 1.55, "gold": 22, "xp": 54},
+        }[kind]
+        hp_mult = 1.38 if empowered else 1.0
+        damage_mult = 1.28 if empowered else 1.0
+        reward_mult = 1.18 if empowered else 1.0
+        return Minion(
+            x,
+            y,
+            team,
+            stats["hp"] * hp_mult,
+            stats["hp"] * hp_mult,
+            stats["radius"] + (2 if empowered else 0),
+            stats["speed"],
+            stats["attack_damage"] * damage_mult,
+            stats["attack_range"],
+            stats["attack_cd"],
+            lane=lane,
+            kind=kind,
+            empowered=empowered,
+            gold_reward=int(stats["gold"] * reward_mult),
+            xp_reward=int(stats["xp"] * reward_mult),
+        )
 
     def update_player(self, dt):
         if not self.player.alive:
@@ -1390,8 +1402,8 @@ class MobaGame:
     def reward_player(self, target):
         rule = self.mode_rule()
         if isinstance(target, Minion):
-            self.player.gold += int(8 * rule["gold_mult"])
-            self.gain_xp(self.player, int(28 * rule["xp_mult"]))
+            self.player.gold += int(target.gold_reward * rule["gold_mult"])
+            self.gain_xp(self.player, int(target.xp_reward * rule["xp_mult"]))
         elif isinstance(target, Tower):
             self.player.gold += int(120 * rule["gold_mult"])
             self.gain_xp(self.player, int(90 * rule["xp_mult"]))
@@ -1442,6 +1454,9 @@ class MobaGame:
                 self.reward_player(target)
             if isinstance(target, Tower):
                 text = self.text("destroyed", name=target.name)
+                if target.tier == "base" and attacker_team in {"blue", "red"}:
+                    empowered_text = self.text("empowered_minions", team=self.text(attacker_team), lane=self.lane_name(target.lane))
+                    text = f"{text} / {empowered_text}"
                 self.show_message(text)
                 self.spawn_banner(text, "#f7d765", ttl=1.5)
                 self.spawn_particles(target.x, target.y, "#f7d765", count=22, speed=150, spread=1.3, radius=3.4, ttl=0.42)
@@ -1777,21 +1792,45 @@ class MobaGame:
         color = team_color(tower.team)
         x, y, r = tower.x, tower.y, tower.radius
         c.create_rectangle(x - r, y - r, x + r, y + r, fill="#2e3335", outline=color, width=3)
+        if tower.tier == "base":
+            c.create_rectangle(x - r + 5, y - r + 5, x + r - 5, y + r - 5, outline="#f7d765", width=2)
         c.create_polygon(x, y - r - 16, x - 18, y, x + 18, y, fill=color, outline="#f5f1d7")
         self.draw_bar(c, x - 30, y - 38, 60, tower.hp, tower.max_hp, "#48d06b")
 
     def draw_minion(self, c, minion):
         color = team_color(minion.team)
-        c.create_oval(
-            minion.x - minion.radius,
-            minion.y - minion.radius,
-            minion.x + minion.radius,
-            minion.y + minion.radius,
-            fill=color,
-            outline="#15191b",
-            width=2,
-        )
-        self.draw_bar(c, minion.x - 15, minion.y - 19, 30, minion.hp, minion.max_hp, "#48d06b")
+        outline = "#f7d765" if minion.empowered else "#15191b"
+        width = 3 if minion.empowered else 2
+        if minion.kind == "ranged":
+            c.create_polygon(
+                minion.x,
+                minion.y - minion.radius - 2,
+                minion.x - minion.radius - 1,
+                minion.y + minion.radius,
+                minion.x + minion.radius + 1,
+                minion.y + minion.radius,
+                fill=color,
+                outline=outline,
+                width=width,
+            )
+        elif minion.kind == "siege":
+            r = minion.radius
+            c.create_rectangle(minion.x - r - 4, minion.y - r, minion.x + r + 4, minion.y + r, fill=color, outline=outline, width=width)
+            c.create_oval(minion.x - r - 8, minion.y + r - 5, minion.x - r + 2, minion.y + r + 5, fill="#101416", outline="")
+            c.create_oval(minion.x + r - 2, minion.y + r - 5, minion.x + r + 8, minion.y + r + 5, fill="#101416", outline="")
+        else:
+            c.create_oval(
+                minion.x - minion.radius,
+                minion.y - minion.radius,
+                minion.x + minion.radius,
+                minion.y + minion.radius,
+                fill=color,
+                outline=outline,
+                width=width,
+            )
+        if minion.empowered:
+            c.create_oval(minion.x - minion.radius - 8, minion.y - minion.radius - 8, minion.x + minion.radius + 8, minion.y + minion.radius + 8, outline="#f7d765", width=1, dash=(4, 4))
+        self.draw_bar(c, minion.x - 18, minion.y - minion.radius - 12, 36, minion.hp, minion.max_hp, "#48d06b")
 
     def draw_neutral_monster(self, c, monster):
         if not monster.alive:

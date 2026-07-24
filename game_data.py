@@ -244,6 +244,7 @@ L10N = {
         "defeated_by_neutral": "{victim} was defeated by jungle monsters",
         "destroyed": "{name} destroyed",
         "neutral_slain": "{name} defeated: +{gold}G +{xp}XP",
+        "empowered_minions": "{team} minions empowered on {lane}",
         "level_up": "{name} reached Lv.{level}: HP +48, ATK +4, skills stronger",
         "skill_point_gained": "Skill point gained",
         "skill_upgraded": "{skill} upgraded to Lv.{level}",
@@ -299,6 +300,11 @@ L10N = {
             "boots": "Boots",
             "guard": "Guard",
         },
+        "lanes": {
+            "top": "top lane",
+            "mid": "mid lane",
+            "bot": "bot lane",
+        },
         "jungle": {
             "blue_grove": "Blue Grove Spirit",
             "blue_stone": "Blue Stonebeast",
@@ -342,6 +348,7 @@ L10N = {
         "defeated_by_neutral": "{victim} 被野怪击败",
         "destroyed": "{name} 被摧毁",
         "neutral_slain": "击败{name}：+{gold}金币 +{xp}经验",
+        "empowered_minions": "{team}{lane}路小兵已强化",
         "level_up": "{name} 升到 {level} 级：生命+48 攻击+4 技能更强",
         "skill_point_gained": "获得技能点",
         "skill_upgraded": "{skill} 升到 {level} 级",
@@ -396,6 +403,11 @@ L10N = {
             "blade": "破军刃",
             "boots": "疾行靴",
             "guard": "守护甲",
+        },
+        "lanes": {
+            "top": "上",
+            "mid": "中",
+            "bot": "下",
         },
         "jungle": {
             "blue_grove": "蓝野灵",
@@ -458,12 +470,17 @@ class Hero(Unit):
 class Minion(Unit):
     lane: str = "mid"
     waypoint: int = 1
+    kind: str = "melee"
+    empowered: bool = False
+    gold_reward: int = 8
+    xp_reward: int = 28
 
 
 @dataclass
 class Tower(Unit):
     lane: str = "mid"
     name: str = "Tower"
+    tier: str = "outer"
 
 
 @dataclass
