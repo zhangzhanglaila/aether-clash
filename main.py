@@ -11,9 +11,11 @@ from game_data import (
     HEIGHT,
     Hero,
     ITEMS,
+    JUNGLE_CAMPS,
     L10N,
     MODE_RULES,
     Minion,
+    NeutralMonster,
     FloatingText,
     Particle,
     Banner,
@@ -86,6 +88,7 @@ class MobaGame:
         self.red_core = None
         self.towers = []
         self.minions = []
+        self.neutral_monsters = []
         self.projectiles = []
         self.effects = []
         self.particles = []
@@ -117,6 +120,9 @@ class MobaGame:
 
     def item_name(self, item_key):
         return L10N[self.language]["items"][item_key]
+
+    def jungle_name(self, camp_key):
+        return L10N[self.language]["jungle"][camp_key]
 
     def mode_rule(self):
         return MODE_RULES.get(self.selected_mode_key or "rank", MODE_RULES["rank"])
@@ -189,6 +195,7 @@ class MobaGame:
         self.towers = self.make_towers()
         self.scale_structures(rule)
         self.minions = []
+        self.neutral_monsters = self.make_neutral_monsters()
         self.projectiles = []
         self.effects = []
         self.particles = []
@@ -242,6 +249,31 @@ class MobaGame:
             )
             for team, lane, x, y in data
         ]
+
+    def make_neutral_monsters(self):
+        monsters = []
+        for camp_key, config in JUNGLE_CAMPS.items():
+            monsters.append(
+                NeutralMonster(
+                    x=config["x"],
+                    y=config["y"],
+                    team="neutral",
+                    hp=config["hp"],
+                    max_hp=config["hp"],
+                    radius=config["radius"],
+                    speed=0,
+                    attack_damage=config["attack_damage"],
+                    attack_range=128,
+                    attack_cd=1.05,
+                    camp_key=camp_key,
+                    name=camp_key,
+                    gold_reward=config["gold"],
+                    xp_reward=config["xp"],
+                    respawn_delay=config["respawn"],
+                    color=config["color"],
+                )
+            )
+        return monsters
 
     def start(self):
         self.loop()
@@ -566,6 +598,7 @@ class MobaGame:
 
         self.update_player(dt)
         self.update_enemy_hero(dt)
+        self.update_neutral_monsters()
         self.update_minions(dt)
         self.update_towers()
         self.update_cores()
@@ -676,6 +709,24 @@ class MobaGame:
         if dist(hero, self.blue_core if hero.team == "blue" else self.red_core) < 120:
             hero.hp = min(hero.max_hp, hero.hp + 34 * dt)
 
+    def update_neutral_monsters(self):
+        for monster in self.neutral_monsters:
+            if not monster.alive:
+                if monster.respawn_at and self.now() >= monster.respawn_at:
+                    monster.alive = True
+                    monster.hp = monster.max_hp
+                    monster.respawn_at = 0
+                    self.spawn_ring(monster.x, monster.y, monster.color, base_radius=52, ttl=0.28)
+                continue
+
+            hero_targets = [
+                hero for hero in (self.player, self.enemy_hero)
+                if hero.alive and dist(monster, hero) <= monster.attack_range
+            ]
+            if hero_targets:
+                hero_targets.sort(key=lambda hero: dist(monster, hero))
+                self.unit_attack(monster, hero_targets[0])
+
     def update_minions(self, dt):
         for minion in self.minions:
             if not minion.alive:
@@ -734,7 +785,10 @@ class MobaGame:
                 p.x += p.vx * p.speed * dt
                 p.y += p.vy * p.speed * dt
                 hit = False
-                for target in self.enemies_of(p.team, include_cores=True):
+                targets = self.enemies_of(p.team, include_cores=True)
+                if p.team != "neutral":
+                    targets = targets + [monster for monster in self.neutral_monsters if monster.alive]
+                for target in targets:
                     if target.alive and dist_xy(p.x, p.y, target.x, target.y) <= p.radius + target.radius:
                         self.apply_damage(target, p.damage, p.team)
                         self.spawn_hit_fx(p.x, p.y, p.color)
@@ -796,17 +850,20 @@ class MobaGame:
         for hero in [self.player, self.enemy_hero]:
             if not hero.alive and hero.respawn_at == 0:
                 hero.respawn_at = self.now() + 5
-                killer = self.enemy_hero if hero.team == "blue" else self.player
-                killer.kills += 1
                 hero.deaths += 1
-                killer.gold += 80
-                if killer.team == "red":
-                    self.gain_xp(killer, 120)
-                defeat_text = self.text(
-                    "defeated",
-                    killer=self.hero_name(killer.hero_key),
-                    victim=self.hero_name(hero.hero_key),
-                )
+                if hero.last_attacker_team == "neutral":
+                    defeat_text = self.text("defeated_by_neutral", victim=self.hero_name(hero.hero_key))
+                else:
+                    killer = self.enemy_hero if hero.team == "blue" else self.player
+                    killer.kills += 1
+                    killer.gold += 80
+                    if killer.team == "red":
+                        self.gain_xp(killer, 120)
+                    defeat_text = self.text(
+                        "defeated",
+                        killer=self.hero_name(killer.hero_key),
+                        victim=self.hero_name(hero.hero_key),
+                    )
                 self.show_message(defeat_text)
                 self.spawn_banner(defeat_text, "#ffb0aa", ttl=1.6)
 
@@ -826,6 +883,7 @@ class MobaGame:
         hero.alive = True
         hero.hp = hero.max_hp
         hero.respawn_at = 0
+        hero.last_attacker_team = ""
         if hero.team == "blue":
             hero.x, hero.y = 130, 580
         else:
@@ -854,12 +912,22 @@ class MobaGame:
         candidates.sort(key=lambda e: (priority.get(type(e), 9), dist(unit, e)))
         return candidates[0]
 
+    def nearest_neutral(self, unit, range_value):
+        candidates = [
+            monster for monster in self.neutral_monsters
+            if monster.alive and dist(unit, monster) <= range_value
+        ]
+        if not candidates:
+            return None
+        candidates.sort(key=lambda monster: dist(unit, monster))
+        return candidates[0]
+
     def unit_attack(self, unit, target):
         current = self.now()
         if current < unit.next_attack:
             return
         unit.next_attack = current + unit.attack_cd
-        color = "#8fd3ff" if unit.team == "blue" else "#ff9a91"
+        color = "#8fd3ff" if unit.team == "blue" else "#ff9a91" if unit.team == "red" else "#f7d765"
         self.spawn_particles(unit.x, unit.y, color, count=6, speed=70, spread=0.5, radius=2.1, ttl=0.18)
         self.projectiles.append(
             Projectile(
@@ -878,7 +946,7 @@ class MobaGame:
     def hero_attack(self, hero, forced_target=None):
         if not hero.alive:
             return
-        target = forced_target or self.nearest_enemy(hero, hero.attack_range, include_cores=True)
+        target = forced_target or self.nearest_enemy(hero, hero.attack_range, include_cores=True) or self.nearest_neutral(hero, hero.attack_range)
         if not target:
             return
         self.unit_attack(hero, target)
@@ -977,7 +1045,10 @@ class MobaGame:
         return vx, vy
 
     def damage_area(self, team, x, y, radius, amount, include_cores=False):
-        for target in self.enemies_of(team, include_cores=include_cores):
+        targets = self.enemies_of(team, include_cores=include_cores)
+        if team != "neutral":
+            targets = targets + [monster for monster in self.neutral_monsters if monster.alive]
+        for target in targets:
             if target.alive and dist_xy(x, y, target.x, target.y) <= radius + target.radius:
                 self.apply_damage(target, amount, team)
 
@@ -1341,11 +1412,17 @@ class MobaGame:
         if isinstance(target, (Tower, Core)):
             amount *= 1.35 if attacker_team == "blue" else 1.15
         was_alive = target.alive
+        if isinstance(target, Hero):
+            target.last_attacker_team = attacker_team
         if target is self.player and self.recalling:
             self.cancel_recall()
-        self.spawn_damage_text(target.x, target.y - 18, amount, "#ff9a91" if attacker_team == "blue" else "#8fd3ff")
+        damage_color = "#ff9a91" if attacker_team == "blue" else "#8fd3ff" if attacker_team == "red" else "#f7d765"
+        self.spawn_damage_text(target.x, target.y - 18, amount, damage_color)
         target.take_damage(amount)
         if was_alive and not target.alive:
+            if isinstance(target, NeutralMonster) and attacker_team in {"blue", "red"}:
+                self.reward_neutral(target, attacker_team)
+                target.respawn_at = self.now() + target.respawn_delay
             if attacker_team == "blue" and target.team == "red":
                 self.reward_player(target)
             if isinstance(target, Tower):
@@ -1363,6 +1440,20 @@ class MobaGame:
             elif isinstance(target, Hero):
                 self.spawn_particles(target.x, target.y, target.accent, count=26, speed=180, spread=1.4, radius=3.2, ttl=0.38)
                 self.spawn_ring(target.x, target.y, target.accent, base_radius=68, ttl=0.26)
+
+    def reward_neutral(self, monster, attacker_team):
+        hero = self.player if attacker_team == "blue" else self.enemy_hero
+        rule = self.mode_rule()
+        gold = int(monster.gold_reward * rule["gold_mult"])
+        xp = int(monster.xp_reward * rule["xp_mult"])
+        hero.gold += gold
+        self.gain_xp(hero, xp)
+        self.spawn_particles(monster.x, monster.y, monster.color, count=24, speed=150, spread=1.2, radius=3.1, ttl=0.4)
+        self.spawn_ring(monster.x, monster.y, monster.color, base_radius=64, ttl=0.34)
+        if attacker_team == "blue":
+            text = self.text("neutral_slain", name=self.jungle_name(monster.camp_key), gold=gold, xp=xp)
+            self.show_message(text)
+            self.spawn_banner(text, monster.color, ttl=1.25)
 
     def draw(self):
         c = self.canvas
@@ -1388,6 +1479,8 @@ class MobaGame:
                 self.draw_tower(c, tower)
         for minion in self.minions:
             self.draw_minion(c, minion)
+        for monster in self.neutral_monsters:
+            self.draw_neutral_monster(c, monster)
         self.draw_hero(c, self.player)
         self.draw_hero(c, self.enemy_hero)
         for p in self.projectiles:
@@ -1610,6 +1703,15 @@ class MobaGame:
 
     def draw_map(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#17291f", outline="")
+        jungle_zones = [
+            (250, 430, 410, 588, "#1e3c2b"),
+            (350, 174, 510, 328, "#1f3f34"),
+            (690, 112, 850, 270, "#1e3c2b"),
+            (590, 374, 750, 530, "#1f3f34"),
+        ]
+        for x1, y1, x2, y2, color in jungle_zones:
+            c.create_oval(x1, y1, x2, y2, fill=color, outline="#365640", width=2)
+        c.create_oval(486, 288, 614, 412, fill="#2d3a2a", outline="#d8cf9b", width=2)
         for lane, path in self.paths.items():
             points = []
             for x, y in path:
@@ -1665,6 +1767,19 @@ class MobaGame:
             width=2,
         )
         self.draw_bar(c, minion.x - 15, minion.y - 19, 30, minion.hp, minion.max_hp, "#48d06b")
+
+    def draw_neutral_monster(self, c, monster):
+        if not monster.alive:
+            if monster.respawn_at:
+                left = max(0, int(monster.respawn_at - self.now() + 1))
+                c.create_oval(monster.x - 20, monster.y - 20, monster.x + 20, monster.y + 20, fill="#12181b", outline="#394043", width=2)
+                c.create_text(monster.x, monster.y, text=str(left), fill="#d8cf9b", font=("Segoe UI", 10, "bold"))
+            return
+        r = monster.radius
+        c.create_oval(monster.x - r - 8, monster.y - r - 8, monster.x + r + 8, monster.y + r + 8, fill="#101416", outline=monster.color, width=2)
+        c.create_oval(monster.x - r, monster.y - r, monster.x + r, monster.y + r, fill=monster.color, outline="#f5f1d7", width=2)
+        c.create_oval(monster.x - 8, monster.y - 8, monster.x + 8, monster.y + 8, fill="#20282b", outline="")
+        self.draw_bar(c, monster.x - 34, monster.y - r - 18, 68, monster.hp, monster.max_hp, "#48d06b")
 
     def draw_hero(self, c, hero):
         if not hero.alive:
@@ -1775,6 +1890,9 @@ class MobaGame:
                 self.draw_minimap_dot(c, left, top, w, h, tower.x, tower.y, team_color(tower.team), 3)
         for minion in self.minions[::2]:
             self.draw_minimap_dot(c, left, top, w, h, minion.x, minion.y, team_color(minion.team), 2)
+        for monster in self.neutral_monsters:
+            color = monster.color if monster.alive else "#4a4f4d"
+            self.draw_minimap_dot(c, left, top, w, h, monster.x, monster.y, color, 3)
         self.draw_minimap_dot(c, left, top, w, h, self.blue_core.x, self.blue_core.y, "#78a3ff", 5)
         self.draw_minimap_dot(c, left, top, w, h, self.red_core.x, self.red_core.y, "#ff7b7c", 5)
         if self.player.alive:

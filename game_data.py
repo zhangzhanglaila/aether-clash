@@ -138,6 +138,65 @@ MODE_RULES = {
 }
 
 
+JUNGLE_CAMPS = {
+    "blue_grove": {
+        "x": 324,
+        "y": 500,
+        "hp": 360,
+        "attack_damage": 20,
+        "gold": 62,
+        "xp": 72,
+        "respawn": 24.0,
+        "radius": 18,
+        "color": "#76f4d1",
+    },
+    "blue_stone": {
+        "x": 414,
+        "y": 248,
+        "hp": 420,
+        "attack_damage": 24,
+        "gold": 72,
+        "xp": 82,
+        "respawn": 28.0,
+        "radius": 20,
+        "color": "#8fd3ff",
+    },
+    "red_grove": {
+        "x": 776,
+        "y": 200,
+        "hp": 360,
+        "attack_damage": 20,
+        "gold": 62,
+        "xp": 72,
+        "respawn": 24.0,
+        "radius": 18,
+        "color": "#76f4d1",
+    },
+    "red_stone": {
+        "x": 686,
+        "y": 452,
+        "hp": 420,
+        "attack_damage": 24,
+        "gold": 72,
+        "xp": 82,
+        "respawn": 28.0,
+        "radius": 20,
+        "color": "#8fd3ff",
+    },
+    "ancient_guard": {
+        "x": 550,
+        "y": 350,
+        "hp": 820,
+        "attack_damage": 36,
+        "gold": 150,
+        "xp": 180,
+        "respawn": 45.0,
+        "radius": 26,
+        "color": "#f7d765",
+    },
+}
+
+
 L10N = {
     "en": {
         "language_title": "CHOOSE LANGUAGE",
@@ -171,7 +230,9 @@ L10N = {
         "exit": "Close the window to exit",
         "deployed": "{name} deployed",
         "defeated": "{killer} defeated {victim}",
+        "defeated_by_neutral": "{victim} was defeated by jungle monsters",
         "destroyed": "{name} destroyed",
+        "neutral_slain": "{name} defeated: +{gold}G +{xp}XP",
         "level_up": "{name} reached Lv.{level}: HP +48, ATK +4, skills stronger",
         "skill_point_gained": "Skill point gained",
         "skill_upgraded": "{skill} upgraded to Lv.{level}",
@@ -227,6 +288,13 @@ L10N = {
             "boots": "Boots",
             "guard": "Guard",
         },
+        "jungle": {
+            "blue_grove": "Blue Grove Spirit",
+            "blue_stone": "Blue Stonebeast",
+            "red_grove": "Red Grove Spirit",
+            "red_stone": "Red Stonebeast",
+            "ancient_guard": "Ancient Guard",
+        },
     },
     "zh": {
         "language_title": "选择语言",
@@ -260,7 +328,9 @@ L10N = {
         "exit": "关闭窗口退出",
         "deployed": "{name} 已出战",
         "defeated": "{killer} 击败了 {victim}",
+        "defeated_by_neutral": "{victim} 被野怪击败",
         "destroyed": "{name} 被摧毁",
+        "neutral_slain": "击败{name}：+{gold}金币 +{xp}经验",
         "level_up": "{name} 升到 {level} 级：生命+48 攻击+4 技能更强",
         "skill_point_gained": "获得技能点",
         "skill_upgraded": "{skill} 升到 {level} 级",
@@ -316,6 +386,13 @@ L10N = {
             "boots": "疾行靴",
             "guard": "守护甲",
         },
+        "jungle": {
+            "blue_grove": "蓝野灵",
+            "blue_stone": "蓝石兽",
+            "red_grove": "红野灵",
+            "red_stone": "红石兽",
+            "ancient_guard": "远古守卫",
+        },
     },
 }
 
@@ -358,6 +435,7 @@ class Hero(Unit):
     gold: int = 0
     kills: int = 0
     deaths: int = 0
+    last_attacker_team: str = ""
     equipment: dict = field(default_factory=lambda: {"blade": 0, "boots": 0, "guard": 0})
     respawn_at: float = 0
     cooldowns: dict = field(default_factory=lambda: {"q": 0, "e": 0, "r": 0})
@@ -380,6 +458,17 @@ class Tower(Unit):
 @dataclass
 class Core(Unit):
     name: str = "Core"
+
+
+@dataclass
+class NeutralMonster(Unit):
+    camp_key: str = "blue_grove"
+    name: str = "Neutral"
+    gold_reward: int = 0
+    xp_reward: int = 0
+    respawn_delay: float = 24.0
+    respawn_at: float = 0
+    color: str = "#f7d765"
 
 
 @dataclass
