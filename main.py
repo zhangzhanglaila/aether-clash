@@ -11,7 +11,6 @@ from game_data import (
     HEROES,
     HEIGHT,
     Hero,
-    ITEMS,
     JUNGLE_CAMPS,
     L10N,
     MODE_RULES,
@@ -30,6 +29,7 @@ from game_data import (
     norm,
     team_color,
 )
+from equipment_data import HERO_RECOMMENDED_ITEMS, ITEMS
 
 
 SKILL_MAX_LEVELS = {"q": 6, "e": 6, "r": 3}
@@ -152,6 +152,7 @@ class MobaGame:
             accent=config["accent"],
             skill_cds=dict(config["cooldowns"]),
             skill_names=dict(config["skills"]),
+            equipment={key: 0 for key in ITEMS},
         )
 
     def reset_match(self, hero_key):
@@ -332,7 +333,7 @@ class MobaGame:
             return
 
         if self.state == "playing" and self.recalling:
-            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "f", "g", "space", "1", "2", "3", "z", "x", "c"}:
+            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "f", "g", "space", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "x", "c"}:
                 self.cancel_recall()
             return
 
@@ -351,7 +352,7 @@ class MobaGame:
             self.cast_flash()
         elif key == "g":
             self.cast_heal()
-        elif key in {"1", "2", "3"}:
+        elif key in {"1", "2", "3", "4", "5", "6", "7", "8", "9"}:
             item_key = list(ITEMS.keys())[int(key) - 1]
             self.buy_item(item_key)
         elif key == "space":
@@ -547,8 +548,14 @@ class MobaGame:
         self.player.equipment[item_key] += 1
         if "attack_damage" in item:
             self.player.attack_damage += item["attack_damage"]
+        if "skill_power" in item:
+            self.player.skill_power += item["skill_power"]
         if "speed" in item:
             self.player.speed += item["speed"]
+        if "attack_range" in item:
+            self.player.attack_range += item["attack_range"]
+        if "attack_cd_reduce" in item:
+            self.player.attack_cd = max(0.2, self.player.attack_cd - item["attack_cd_reduce"])
         if "max_hp" in item:
             self.player.max_hp += item["max_hp"]
             self.player.hp += item["max_hp"]
@@ -1082,8 +1089,9 @@ class MobaGame:
     def skill_damage(self, hero, base, multiplier=1.0, skill_key=None):
         base_attack = HEROES[hero.hero_key]["attack_damage"]
         attack_bonus = max(0, hero.attack_damage - base_attack)
+        skill_power = getattr(hero, "skill_power", 0)
         skill_bonus = self.skill_level_multiplier(hero, skill_key) if skill_key else 1
-        return (base * multiplier + (hero.level - 1) * 8 * multiplier + attack_bonus * 0.45 * multiplier) * skill_bonus
+        return (base * multiplier + (hero.level - 1) * 8 * multiplier + attack_bonus * 0.45 * multiplier + skill_power * 0.72 * multiplier) * skill_bonus
 
     def spawn_particles(self, x, y, color, count=10, speed=120, spread=1.0, radius=3, ttl=0.45):
         for _ in range(count):
@@ -1973,24 +1981,30 @@ class MobaGame:
 
     def draw_shop(self, c):
         self.shop_cards = []
-        left = WIDTH - 328
-        top = HEIGHT - 236
+        left = WIDTH - 404
+        top = HEIGHT - 356
         c.create_rectangle(left, top, WIDTH - 24, HEIGHT - 84, fill="#111719", outline="#d8cf9b", width=2)
         c.create_text(left + 18, top + 20, text=self.text("shop"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        recommended = set(HERO_RECOMMENDED_ITEMS.get(self.player.hero_key, []))
         for index, (item_key, item) in enumerate(ITEMS.items()):
-            y1 = top + 42 + index * 48
-            y2 = y1 + 38
-            self.shop_cards.append((item_key, left + 14, y1, WIDTH - 38, y2))
+            col = index % 3
+            row = index // 3
+            x1 = left + 14 + col * 122
+            y1 = top + 42 + row * 52
+            x2 = x1 + 112
+            y2 = y1 + 44
+            self.shop_cards.append((item_key, x1, y1, x2, y2))
             current_level = self.player.equipment[item_key]
             cost = item["cost"] + current_level * 70
             maxed = current_level >= item["max_stacks"]
             fill = "#20282b" if not maxed else "#181d1f"
-            c.create_rectangle(left + 14, y1, WIDTH - 38, y2, fill=fill, outline=item["color"], width=2)
-            c.create_rectangle(left + 26, y1 + 9, left + 46, y1 + 29, fill=item["color"], outline="")
-            c.create_text(left + 58, y1 + 19, text=f"{index + 1}. {self.item_name(item_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-            c.create_text(WIDTH - 118, y1 + 19, text=f"Lv {current_level}/{item['max_stacks']}", fill="#cfd6cd", anchor="e", font=("Segoe UI", 10))
+            outline = "#f7d765" if item_key in recommended and not maxed else item["color"]
+            c.create_rectangle(x1, y1, x2, y2, fill=fill, outline=outline, width=2)
+            c.create_rectangle(x1 + 8, y1 + 10, x1 + 24, y1 + 26, fill=item["color"], outline="")
+            c.create_text(x1 + 30, y1 + 13, text=self.item_name(item_key), fill="#f5f1d7", anchor="w", font=("Segoe UI", 8, "bold"))
+            c.create_text(x1 + 30, y1 + 31, text=f"Lv {current_level}/{item['max_stacks']}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 8))
             price = "MAX" if maxed else f"G {cost}"
-            c.create_text(WIDTH - 50, y1 + 19, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 10, "bold"))
+            c.create_text(x2 - 6, y1 + 31, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 8, "bold"))
 
     def draw_scoreboard(self, c):
         left = 218
@@ -2014,10 +2028,18 @@ class MobaGame:
         stat_text = f"{self.text('kills')} {hero.kills}   {self.text('deaths')} {hero.deaths}   {self.text('gold')} {hero.gold}"
         c.create_text(left + 74, top + 48, text=stat_text, fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
 
-        equipment_text = " / ".join(f"{self.item_name(key)} {level}" for key, level in hero.equipment.items())
+        equipment_text = self.equipment_summary(hero)
         skill_text = " / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r"))
         c.create_text(left + width - 22, top + 24, text=f"{self.text('equipment')}: {equipment_text}", fill="#d8cf9b", anchor="e", font=("Segoe UI", 10))
         c.create_text(left + width - 22, top + 54, text=skill_text, fill="#f7d765", anchor="e", font=("Segoe UI", 11, "bold"))
+
+    def equipment_summary(self, hero):
+        purchased = [f"{self.item_name(key)} {level}" for key, level in hero.equipment.items() if level > 0]
+        if not purchased:
+            return "-"
+        if len(purchased) > 4:
+            return " / ".join(purchased[:4]) + f" +{len(purchased) - 4}"
+        return " / ".join(purchased)
 
     def draw_settlement(self, c):
         self.settlement_buttons = []

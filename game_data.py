@@ -94,13 +94,6 @@ HEROES = {
 }
 
 
-ITEMS = {
-    "blade": {"cost": 120, "attack_damage": 8, "max_stacks": 3, "color": "#f7d765"},
-    "boots": {"cost": 100, "speed": 18, "max_stacks": 3, "color": "#76b7ff"},
-    "guard": {"cost": 150, "max_hp": 110, "max_stacks": 3, "color": "#48d06b"},
-}
-
-
 MODE_RULES = {
     "rank": {
         "spawn_interval": 7.0,
@@ -297,8 +290,17 @@ L10N = {
         },
         "items": {
             "blade": "Blade",
+            "longbow": "Longbow",
+            "piercing_spear": "Piercing Spear",
+            "storm_staff": "Storm Staff",
+            "arcane_core": "Arcane Core",
+            "frost_orb": "Frost Orb",
             "boots": "Boots",
             "guard": "Guard",
+            "bulwark": "Bulwark",
+            "revive_plate": "Revive Plate",
+            "swift_boots": "Swift Boots",
+            "hunter_charm": "Hunter Charm",
         },
         "lanes": {
             "top": "top lane",
@@ -401,8 +403,17 @@ L10N = {
         },
         "items": {
             "blade": "破军刃",
+            "longbow": "逐星弓",
+            "piercing_spear": "破甲枪",
+            "storm_staff": "雷霆杖",
+            "arcane_core": "奥术核",
+            "frost_orb": "霜华珠",
             "boots": "疾行靴",
             "guard": "守护甲",
+            "bulwark": "壁垒盾",
+            "revive_plate": "复战甲",
+            "swift_boots": "迅捷靴",
+            "hunter_charm": "猎野符",
         },
         "lanes": {
             "top": "上",
@@ -450,6 +461,7 @@ class Hero(Unit):
     hero_key: str = "vanguard"
     role: str = "Fighter"
     accent: str = "#ffe082"
+    skill_power: float = 0
     skill_cds: dict = field(default_factory=lambda: {"q": 3.6, "e": 5.5, "r": 13.5})
     skill_names: dict = field(default_factory=lambda: {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"})
     level: int = 1
