@@ -3,6 +3,7 @@ import random
 import time
 import tkinter as tk
 from game_data import (
+    BRUSH_ZONES,
     Core,
     Beam,
     Effect,
@@ -21,6 +22,7 @@ from game_data import (
     Banner,
     Projectile,
     Tower,
+    RIVER_POLYGON,
     WIDTH,
     clamp,
     dist,
@@ -904,7 +906,7 @@ class MobaGame:
     def nearest_enemy(self, unit, range_value, include_cores=True):
         candidates = [
             e for e in self.enemies_of(unit.team, include_cores)
-            if e.alive and dist(unit, e) <= range_value
+            if e.alive and dist(unit, e) <= range_value and not self.hero_hidden_from(e, unit)
         ]
         if not candidates:
             return None
@@ -921,6 +923,19 @@ class MobaGame:
             return None
         candidates.sort(key=lambda monster: dist(unit, monster))
         return candidates[0]
+
+    def hero_in_brush(self, hero):
+        return any(left <= hero.x <= right and top <= hero.y <= bottom for left, top, right, bottom in BRUSH_ZONES)
+
+    def hero_hidden_from(self, hero, observer):
+        if not isinstance(hero, Hero) or hero.team == observer.team or not self.hero_in_brush(hero):
+            return False
+        return dist(hero, observer) > 145
+
+    def hero_visible_to_player(self, hero):
+        if hero.team == "blue":
+            return True
+        return self.player.alive and not self.hero_hidden_from(hero, self.player)
 
     def unit_attack(self, unit, target):
         current = self.now()
@@ -1482,7 +1497,8 @@ class MobaGame:
         for monster in self.neutral_monsters:
             self.draw_neutral_monster(c, monster)
         self.draw_hero(c, self.player)
-        self.draw_hero(c, self.enemy_hero)
+        if self.hero_visible_to_player(self.enemy_hero):
+            self.draw_hero(c, self.enemy_hero)
         for p in self.projectiles:
             c.create_oval(
                 p.x - p.radius,
@@ -1703,6 +1719,10 @@ class MobaGame:
 
     def draw_map(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#17291f", outline="")
+        river_points = []
+        for x, y in RIVER_POLYGON:
+            river_points.extend([x, y])
+        c.create_polygon(*river_points, fill="#234a55", outline="#3f737c", width=2)
         jungle_zones = [
             (250, 430, 410, 588, "#1e3c2b"),
             (350, 174, 510, 328, "#1f3f34"),
@@ -1712,6 +1732,11 @@ class MobaGame:
         for x1, y1, x2, y2, color in jungle_zones:
             c.create_oval(x1, y1, x2, y2, fill=color, outline="#365640", width=2)
         c.create_oval(486, 288, 614, 412, fill="#2d3a2a", outline="#d8cf9b", width=2)
+        for left, top, right, bottom in BRUSH_ZONES:
+            c.create_rectangle(left, top, right, bottom, fill="#123722", outline="#3f6b42", width=2)
+            for i in range(6):
+                x = left + 12 + i * ((right - left - 24) / 5)
+                c.create_line(x, bottom - 4, x + 8, top + 8, fill="#5a8b53", width=2)
         for lane, path in self.paths.items():
             points = []
             for x, y in path:
@@ -1795,6 +1820,8 @@ class MobaGame:
             pts.extend([hero.x + math.cos(angle + spread) * length, hero.y + math.sin(angle + spread) * length])
         c.create_polygon(*pts, fill=color, outline=hero.accent, width=3)
         c.create_oval(hero.x - 10, hero.y - 10, hero.x + 10, hero.y + 10, fill="#1a2024", outline="")
+        if self.hero_in_brush(hero):
+            c.create_oval(hero.x - 30, hero.y - 30, hero.x + 30, hero.y + 30, outline="#76f4a0", width=2, dash=(6, 5))
         self.draw_hero_plate(c, hero)
 
     def draw_hero_plate(self, c, hero):
@@ -1897,7 +1924,7 @@ class MobaGame:
         self.draw_minimap_dot(c, left, top, w, h, self.red_core.x, self.red_core.y, "#ff7b7c", 5)
         if self.player.alive:
             self.draw_minimap_dot(c, left, top, w, h, self.player.x, self.player.y, "#ffffff", 4)
-        if self.enemy_hero.alive:
+        if self.enemy_hero.alive and self.hero_visible_to_player(self.enemy_hero):
             self.draw_minimap_dot(c, left, top, w, h, self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", 4)
 
     def draw_minimap_dot(self, c, left, top, w, h, x, y, color, r):
