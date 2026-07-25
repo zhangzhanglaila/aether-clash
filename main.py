@@ -80,6 +80,8 @@ class MobaGame:
         self.lobby_buttons = []
         self.mode_cards = []
         self.hero_cards = []
+        self.shop_cards = []
+        self.recommended_buy_button = None
         self.skill_upgrade_buttons = []
         self.settlement_buttons = []
         self.loading_started_at = 0
@@ -211,6 +213,7 @@ class MobaGame:
         self.float_texts = []
         self.banners = []
         self.shop_cards = []
+        self.recommended_buy_button = None
         self.skill_upgrade_buttons = []
         self.settlement_buttons = []
 
@@ -575,10 +578,29 @@ class MobaGame:
     def select_shop_at(self, x, y):
         if not self.near_shop():
             return False
+        if self.recommended_buy_button:
+            left, top, right, bottom = self.recommended_buy_button
+            if left <= x <= right and top <= y <= bottom:
+                return self.buy_recommended_item()
         for item_key, left, top, right, bottom in self.shop_cards:
             if left <= x <= right and top <= y <= bottom:
                 return self.buy_item(item_key)
         return False
+
+    def buy_recommended_item(self):
+        recommended = HERO_RECOMMENDED_ITEMS.get(self.player.hero_key, [])
+        for item_key in recommended:
+            item = ITEMS[item_key]
+            if self.player.equipment.get(item_key, 0) >= item["max_stacks"]:
+                continue
+            missing_item = self.missing_item_requirement(self.player, item)
+            candidate = missing_item or item_key
+            if self.player.equipment.get(candidate, 0) >= ITEMS[candidate]["max_stacks"]:
+                continue
+            self.buy_item(candidate)
+            return True
+        self.show_message(self.text("no_recommended"))
+        return True
 
     def select_settlement_at(self, x, y):
         for action, left, top, right, bottom in self.settlement_buttons:
@@ -2029,10 +2051,15 @@ class MobaGame:
 
     def draw_shop(self, c):
         self.shop_cards = []
+        self.recommended_buy_button = None
         left = WIDTH - 404
         top = HEIGHT - 356
         c.create_rectangle(left, top, WIDTH - 24, HEIGHT - 84, fill="#111719", outline="#d8cf9b", width=2)
         c.create_text(left + 18, top + 20, text=self.text("shop"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        bx1, by1, bx2, by2 = WIDTH - 158, top + 9, WIDTH - 38, top + 33
+        self.recommended_buy_button = (bx1, by1, bx2, by2)
+        c.create_rectangle(bx1, by1, bx2, by2, fill="#20282b", outline="#f7d765", width=2)
+        c.create_text((bx1 + bx2) / 2, (by1 + by2) / 2, text=self.text("buy_recommended"), fill="#f5f1d7", font=("Segoe UI", 9, "bold"))
         recommended = set(HERO_RECOMMENDED_ITEMS.get(self.player.hero_key, []))
         for index, (item_key, item) in enumerate(ITEMS.items()):
             col = index % 3
