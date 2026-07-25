@@ -752,26 +752,52 @@ class MobaGame:
 
         self.regen_hero(hero, dt)
         hp_ratio = hero.hp / hero.max_hp
-        if hp_ratio < 0.28:
-            tx, ty = self.red_core.x, self.red_core.y
-        else:
-            target = self.nearest_enemy(hero, 270, include_cores=False)
-            if target:
-                if dist(hero, target) <= hero.attack_range:
-                    self.hero_attack(hero, target)
-                    if self.now() >= hero.cooldowns["q"]:
-                        self.cast_ai_bolt(hero, target)
-                tx, ty = target.x, target.y
-            else:
-                tx, ty = 560, 350
+        ai_state, target, tx, ty = self.enemy_ai_decision(hero, hp_ratio)
+        if target:
+            if dist(hero, target) <= hero.attack_range:
+                self.hero_attack(hero, target)
+            if isinstance(target, Hero) and self.now() >= hero.cooldowns["q"]:
+                self.cast_ai_bolt(hero, target)
 
         dx, dy = tx - hero.x, ty - hero.y
-        if hp_ratio >= 0.28 and math.hypot(dx, dy) < 150:
+        stop_distance = 180 if ai_state in {"fight", "jungle"} else 90
+        if ai_state != "retreat" and math.hypot(dx, dy) < stop_distance:
             return
         nx, ny = norm(dx, dy)
         speed = self.effective_speed(hero)
         hero.x = clamp(hero.x + nx * speed * dt, 35, WIDTH - 35)
         hero.y = clamp(hero.y + ny * speed * dt, 35, HEIGHT - 35)
+
+    def enemy_ai_decision(self, hero, hp_ratio):
+        if hp_ratio < 0.28:
+            return "retreat", None, self.red_core.x, self.red_core.y
+
+        player_target = self.player if self.player.alive and not self.hero_hidden_from(self.player, hero) and dist(hero, self.player) < 360 else None
+        if player_target and hp_ratio > 0.42:
+            return "fight", player_target, player_target.x, player_target.y
+
+        low_minion = self.low_health_enemy_minion(hero)
+        if low_minion:
+            return "lane", low_minion, low_minion.x, low_minion.y
+
+        jungle_target = self.nearest_neutral(hero, 260)
+        if jungle_target and hp_ratio > 0.55:
+            return "jungle", jungle_target, jungle_target.x, jungle_target.y
+
+        lane_target = self.nearest_enemy(hero, 310, include_cores=False)
+        if lane_target:
+            return "lane", lane_target, lane_target.x, lane_target.y
+        return "lane", None, 560, 350
+
+    def low_health_enemy_minion(self, hero):
+        candidates = [
+            minion for minion in self.minions
+            if minion.team != hero.team and minion.alive and minion.hp <= hero.attack_damage * 1.25 and dist(hero, minion) <= 330
+        ]
+        if not candidates:
+            return None
+        candidates.sort(key=lambda minion: (dist(hero, minion), minion.hp))
+        return candidates[0]
 
     def regen_hero(self, hero, dt):
         if dist(hero, self.blue_core if hero.team == "blue" else self.red_core) < 120:
