@@ -6,6 +6,7 @@ from game_data import (
     BRUSH_ZONES,
     Core,
     Beam,
+    DamageOverTime,
     Effect,
     FPS_MS,
     HEROES,
@@ -96,6 +97,7 @@ class MobaGame:
         self.neutral_monsters = []
         self.projectiles = []
         self.effects = []
+        self.damage_over_times = []
         self.particles = []
         self.beams = []
         self.float_texts = []
@@ -208,6 +210,7 @@ class MobaGame:
         self.neutral_monsters = self.make_neutral_monsters()
         self.projectiles = []
         self.effects = []
+        self.damage_over_times = []
         self.particles = []
         self.beams = []
         self.float_texts = []
@@ -650,6 +653,7 @@ class MobaGame:
         self.update_towers()
         self.update_cores()
         self.update_projectiles(dt)
+        self.update_damage_over_time(dt)
         self.update_effects(dt)
         self.cleanup_dead()
         self.check_winner()
@@ -874,6 +878,25 @@ class MobaGame:
             self.apply_stun(target, projectile.stun)
         if projectile.slow:
             self.apply_slow(target, projectile.slow, projectile.slow_duration or 1.0)
+
+    def add_damage_over_time(self, target, attacker_team, damage_per_second, duration, color="#b38cff"):
+        if target.alive:
+            self.damage_over_times.append(DamageOverTime(target, attacker_team, damage_per_second, duration, color=color))
+
+    def update_damage_over_time(self, dt):
+        kept = []
+        for effect in self.damage_over_times:
+            effect.ttl -= dt
+            effect.tick_timer -= dt
+            target = effect.target
+            if effect.ttl <= 0 or not getattr(target, "alive", False):
+                continue
+            if effect.tick_timer <= 0:
+                effect.tick_timer = effect.tick_interval
+                self.apply_damage(target, effect.damage_per_second * effect.tick_interval, effect.attacker_team)
+                self.spawn_particles(target.x, target.y, effect.color, count=4, speed=50, spread=0.5, radius=2.0, ttl=0.18)
+            kept.append(effect)
+        self.damage_over_times = kept
 
     def update_effects(self, dt):
         kept = []
@@ -1181,6 +1204,14 @@ class MobaGame:
                 if slow:
                     self.apply_slow(target, slow, duration)
 
+    def dot_area(self, team, x, y, radius, damage_per_second, duration, color="#b38cff"):
+        targets = self.enemies_of(team, include_cores=False)
+        if team != "neutral":
+            targets = targets + [monster for monster in self.neutral_monsters if monster.alive]
+        for target in targets:
+            if target.alive and dist_xy(x, y, target.x, target.y) <= radius + target.radius:
+                self.add_damage_over_time(target, team, damage_per_second, duration, color=color)
+
     def skill_damage(self, hero, base, multiplier=1.0, skill_key=None):
         base_attack = HEROES[hero.hero_key]["attack_damage"]
         attack_bonus = max(0, hero.attack_damage - base_attack)
@@ -1452,7 +1483,11 @@ class MobaGame:
             hero.y = clamp(ty - 18, 35, HEIGHT - 35)
             self.spawn_ring(tx, ty, hero.accent, base_radius=88, ttl=0.32)
             self.spawn_particles(tx, ty, hero.accent, count=28, speed=220, spread=1.25, radius=3.2, ttl=0.38)
-            self.damage_area(hero.team, tx, ty, 78, self.skill_damage(hero, 188, 1.5, skill_key="r"), include_cores=False)
+            execute_mult = 1.0
+            if target and target.alive:
+                missing_hp = 1 - target.hp / target.max_hp
+                execute_mult += missing_hp * 0.85
+            self.damage_area(hero.team, tx, ty, 78, self.skill_damage(hero, 188, 1.5 * execute_mult, skill_key="r"), include_cores=False)
             self.control_area(hero.team, tx, ty, 78, slow=0.45, duration=1.0)
             return
 
@@ -1489,6 +1524,7 @@ class MobaGame:
             self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=28, speed=210, spread=1.4, radius=3.2, ttl=0.42)
             self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176, 1.45, skill_key="r"), include_cores=True)
             self.control_area(hero.team, self.mouse_x, self.mouse_y, 120, stun=0.5, slow=0.5, duration=1.4)
+            self.dot_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 28, 0.8, skill_key="r"), 2.1, color=hero.accent)
             return
 
         self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=6, ttl=0.18)
@@ -1496,6 +1532,7 @@ class MobaGame:
         self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=20, speed=190, spread=1.25, radius=3.0, ttl=0.36)
         self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 148, 1.45, skill_key="r"), include_cores=True)
         self.control_area(hero.team, self.mouse_x, self.mouse_y, 96, stun=0.45, slow=0.55, duration=1.1)
+        self.dot_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 18, 0.7, skill_key="r"), 1.6, color=hero.accent)
 
     def cast_ai_bolt(self, hero, target):
         if not self.skill_ready(hero, "q"):

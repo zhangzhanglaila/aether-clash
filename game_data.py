@@ -596,3 +596,14 @@ class Banner:
     color: str
     ttl: float
     max_ttl: float
+
+
+@dataclass
+class DamageOverTime:
+    target: object
+    attacker_team: str
+    damage_per_second: float
+    ttl: float
+    tick_interval: float = 0.35
+    tick_timer: float = 0
+    color: str = "#b38cff"
