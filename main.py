@@ -70,6 +70,7 @@ class MobaGame:
         self.summoner_cd_durations = {"f": 12.0, "g": 18.0}
         self.aiming_skill = None
         self.show_scoreboard = False
+        self.locked_target = None
 
         self.paths = {
             "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],
@@ -181,6 +182,7 @@ class MobaGame:
         self.summoner_cooldowns = {"f": 0, "g": 0}
         self.aiming_skill = None
         self.show_scoreboard = False
+        self.locked_target = None
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
         self.enemy_hero.name = "Red Vanguard"
@@ -346,7 +348,7 @@ class MobaGame:
             return
 
         if self.state == "playing" and self.recalling:
-            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "f", "g", "space", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "x", "c"}:
+            if key == "b" or key in {"w", "a", "s", "d", "up", "down", "left", "right", "q", "e", "r", "f", "g", "space", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "x", "c", "t"}:
                 self.cancel_recall()
             return
 
@@ -355,6 +357,9 @@ class MobaGame:
             return
         if self.state == "playing" and key in SKILL_UPGRADE_KEYS:
             self.upgrade_skill(self.player, SKILL_UPGRADE_KEYS[key])
+            return
+        if self.state == "playing" and key == "t":
+            self.cycle_locked_target()
             return
         if self.state == "playing" and key in {"q", "e", "r"}:
             self.start_aiming_skill(key)
@@ -410,6 +415,8 @@ class MobaGame:
             return
         if self.state == "playing" and self.aiming_skill:
             self.cast_aiming_skill()
+            return
+        if self.state == "playing" and self.lock_target_at(self.mouse_x, self.mouse_y):
             return
         if self.select_shop_at(self.mouse_x, self.mouse_y):
             return
@@ -1045,6 +1052,8 @@ class MobaGame:
             if banner.ttl > 0:
                 next_banners.append(banner)
         self.banners = next_banners
+        if self.locked_target and not getattr(self.locked_target, "alive", False):
+            self.locked_target = None
 
     def cleanup_dead(self):
         self.minions = [m for m in self.minions if m.alive]
@@ -1205,10 +1214,77 @@ class MobaGame:
     def hero_attack(self, hero, forced_target=None):
         if not hero.alive:
             return
-        target = forced_target or self.nearest_enemy(hero, hero.attack_range, include_cores=True) or self.nearest_neutral(hero, hero.attack_range)
+        locked_target = self.valid_locked_target(hero) if hero is self.player else None
+        target = forced_target or locked_target or self.nearest_enemy(hero, hero.attack_range, include_cores=True) or self.nearest_neutral(hero, hero.attack_range)
         if not target:
             return
         self.unit_attack(hero, target)
+
+    def target_display_name(self, target):
+        if isinstance(target, Hero):
+            return self.hero_name(target.hero_key)
+        if isinstance(target, Minion):
+            return "Minion" if self.language == "en" else "小兵"
+        if isinstance(target, NeutralMonster):
+            return self.jungle_name(target.camp_key)
+        if isinstance(target, Tower):
+            return target.name
+        if isinstance(target, Core):
+            return target.name
+        return "Target"
+
+    def valid_locked_target(self, hero):
+        target = self.locked_target
+        if not target or not getattr(target, "alive", False):
+            self.locked_target = None
+            return None
+        if isinstance(target, Hero) and not self.hero_visible_to_player(target):
+            self.locked_target = None
+            return None
+        if dist(hero, target) > max(hero.attack_range + 120, 360):
+            return None
+        return target
+
+    def lock_target(self, target):
+        self.locked_target = target
+        self.show_message(self.text("target_locked", name=self.target_display_name(target)))
+        self.spawn_ring(target.x, target.y, "#f7d765", base_radius=42, ttl=0.22)
+
+    def lock_target_at(self, x, y):
+        candidates = self.lockable_targets()
+        clicked = [
+            target for target in candidates
+            if dist_xy(x, y, target.x, target.y) <= target.radius + 14
+        ]
+        if not clicked:
+            return False
+        clicked.sort(key=lambda target: dist_xy(x, y, target.x, target.y))
+        self.lock_target(clicked[0])
+        return True
+
+    def cycle_locked_target(self):
+        candidates = self.lockable_targets()
+        if not candidates:
+            self.locked_target = None
+            self.show_message(self.text("target_cleared"))
+            return
+        candidates.sort(key=lambda target: dist(self.player, target))
+        if self.locked_target not in candidates:
+            self.lock_target(candidates[0])
+            return
+        index = candidates.index(self.locked_target)
+        self.lock_target(candidates[(index + 1) % len(candidates)])
+
+    def lockable_targets(self):
+        candidates = []
+        if self.enemy_hero.alive and self.hero_visible_to_player(self.enemy_hero):
+            candidates.append(self.enemy_hero)
+        candidates.extend(minion for minion in self.minions if minion.team == "red" and minion.alive)
+        candidates.extend(monster for monster in self.neutral_monsters if monster.alive)
+        candidates.extend(tower for tower in self.towers if tower.team == "red" and tower.alive)
+        if self.red_core.alive:
+            candidates.append(self.red_core)
+        return [target for target in candidates if dist(self.player, target) <= 520]
 
     def skill_ready(self, hero, key):
         if not self.skill_unlocked(hero, key):
@@ -1886,6 +1962,7 @@ class MobaGame:
             )
         for text in self.float_texts:
             c.create_text(text.x, text.y, text=text.text, fill=text.color, font=("Segoe UI", 11, "bold"))
+        self.draw_locked_target(c)
         for index, banner in enumerate(self.banners[-3:]):
             alpha = banner.ttl / banner.max_ttl
             left = WIDTH // 2 - 220
@@ -2323,6 +2400,19 @@ class MobaGame:
         mx = left + x / WIDTH * w
         my = top + y / HEIGHT * h
         c.create_oval(mx - r, my - r, mx + r, my + r, fill=color, outline="")
+
+    def draw_locked_target(self, c):
+        target = self.valid_locked_target(self.player)
+        if not target:
+            return
+        if isinstance(target, Hero) and not self.hero_visible_to_player(target):
+            return
+        r = target.radius + 16
+        c.create_oval(target.x - r, target.y - r, target.x + r, target.y + r, outline="#f7d765", width=2, dash=(7, 5))
+        c.create_line(target.x - r - 8, target.y, target.x - r + 6, target.y, fill="#f7d765", width=2)
+        c.create_line(target.x + r - 6, target.y, target.x + r + 8, target.y, fill="#f7d765", width=2)
+        c.create_line(target.x, target.y - r - 8, target.x, target.y - r + 6, fill="#f7d765", width=2)
+        c.create_line(target.x, target.y + r - 6, target.x, target.y + r + 8, fill="#f7d765", width=2)
 
     def draw_shop(self, c):
         self.shop_cards = []
