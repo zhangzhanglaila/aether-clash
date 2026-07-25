@@ -235,6 +235,8 @@ L10N = {
         "deployed": "{name} deployed",
         "defeated": "{killer} defeated {victim}",
         "defeated_by_neutral": "{victim} was defeated by jungle monsters",
+        "killing_spree": "{name} is on a {count} kill streak",
+        "shutdown": "{name} shut down {target}",
         "destroyed": "{name} destroyed",
         "neutral_slain": "{name} defeated: +{gold}G +{xp}XP",
         "empowered_minions": "{team} minions empowered on {lane}",
@@ -362,6 +364,8 @@ L10N = {
         "deployed": "{name} 已出战",
         "defeated": "{killer} 击败了 {victim}",
         "defeated_by_neutral": "{victim} 被野怪击败",
+        "killing_spree": "{name} 已连续击败 {count} 人",
+        "shutdown": "{name} 终结了 {target}",
         "destroyed": "{name} 被摧毁",
         "neutral_slain": "击败{name}：+{gold}金币 +{xp}经验",
         "empowered_minions": "{team}{lane}路小兵已强化",
@@ -501,6 +505,7 @@ class Hero(Unit):
     next_xp: int = 120
     gold: int = 0
     kills: int = 0
+    kill_streak: int = 0
     deaths: int = 0
     last_attacker_team: str = ""
     equipment: dict = field(default_factory=lambda: {"blade": 0, "boots": 0, "guard": 0})

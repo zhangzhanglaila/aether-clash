@@ -1054,13 +1054,19 @@ class MobaGame:
                 hero.respawn_at = self.now() + 5
                 hero.deaths += 1
                 if hero.last_attacker_team == "neutral":
+                    hero.kill_streak = 0
                     defeat_text = self.text("defeated_by_neutral", victim=self.hero_name(hero.hero_key))
                 else:
                     killer = self.enemy_hero if hero.team == "blue" else self.player
                     killer.kills += 1
+                    killer.kill_streak += 1
+                    shutdown_streak = hero.kill_streak
+                    hero.kill_streak = 0
                     killer.gold += 80
+                    self.spawn_reward_text(hero.x, hero.y, 80, 0)
                     if killer.team == "red":
                         self.gain_xp(killer, 120)
+                        self.spawn_reward_text(hero.x, hero.y - 18, 0, 120)
                     defeat_text = self.text(
                         "defeated",
                         killer=self.hero_name(killer.hero_key),
@@ -1068,6 +1074,13 @@ class MobaGame:
                     )
                 self.show_message(defeat_text)
                 self.spawn_banner(defeat_text, "#ffb0aa", ttl=1.6)
+                if hero.last_attacker_team != "neutral":
+                    if shutdown_streak >= 3:
+                        shutdown_text = self.text("shutdown", name=self.hero_name(killer.hero_key), target=self.hero_name(hero.hero_key))
+                        self.spawn_banner(shutdown_text, "#f7d765", ttl=1.45)
+                    elif killer.kill_streak >= 3:
+                        streak_text = self.text("killing_spree", name=self.hero_name(killer.hero_key), count=killer.kill_streak)
+                        self.spawn_banner(streak_text, "#f7d765", ttl=1.45)
 
     def check_winner(self):
         if not self.blue_core.alive:
@@ -1663,15 +1676,30 @@ class MobaGame:
 
     def reward_player(self, target):
         rule = self.mode_rule()
+        gold = 0
+        xp = 0
         if isinstance(target, Minion):
-            self.player.gold += int(target.gold_reward * rule["gold_mult"])
-            self.gain_xp(self.player, int(target.xp_reward * rule["xp_mult"]))
+            gold = int(target.gold_reward * rule["gold_mult"])
+            xp = int(target.xp_reward * rule["xp_mult"])
         elif isinstance(target, Tower):
-            self.player.gold += int(120 * rule["gold_mult"])
-            self.gain_xp(self.player, int(90 * rule["xp_mult"]))
+            gold = int(120 * rule["gold_mult"])
+            xp = int(90 * rule["xp_mult"])
         elif isinstance(target, Hero):
-            self.player.gold += int(120 * rule["gold_mult"])
-            self.gain_xp(self.player, int(120 * rule["xp_mult"]))
+            gold = int(120 * rule["gold_mult"])
+            xp = int(120 * rule["xp_mult"])
+        if gold or xp:
+            self.player.gold += gold
+            self.gain_xp(self.player, xp)
+            self.spawn_reward_text(target.x, target.y, gold, xp)
+
+    def spawn_reward_text(self, x, y, gold, xp):
+        parts = []
+        if gold:
+            parts.append(f"+{gold}G")
+        if xp:
+            parts.append(f"+{xp}XP")
+        if parts:
+            self.spawn_floating_text(x, y - 36, " ".join(parts), "#f7d765", ttl=0.95)
 
     def gain_xp(self, hero, amount):
         hero.xp += amount
@@ -1858,15 +1886,16 @@ class MobaGame:
             )
         for text in self.float_texts:
             c.create_text(text.x, text.y, text=text.text, fill=text.color, font=("Segoe UI", 11, "bold"))
-        for banner in self.banners:
+        for index, banner in enumerate(self.banners[-3:]):
             alpha = banner.ttl / banner.max_ttl
             left = WIDTH // 2 - 220
             right = WIDTH // 2 + 220
-            top = 120
+            top = 120 + index * 58
             bottom = 172
+            bottom += index * 58
             fill = "#101416" if alpha > 0.3 else "#0f1416"
             c.create_rectangle(left, top, right, bottom, fill=fill, outline=banner.color, width=2)
-            c.create_text(WIDTH // 2, 147, text=banner.text, fill=banner.color, font=("Segoe UI", 18, "bold"))
+            c.create_text(WIDTH // 2, top + 27, text=banner.text, fill=banner.color, font=("Segoe UI", 18, "bold"))
         self.draw_ui(c)
 
     def draw_language(self, c):
