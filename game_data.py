@@ -453,6 +453,10 @@ class Unit:
     attack_cd: float = 0
     next_attack: float = 0
     alive: bool = True
+    shield: float = 0
+    stunned_until: float = 0
+    slowed_until: float = 0
+    slow_mult: float = 1.0
 
     def take_damage(self, amount):
         if not self.alive:
@@ -534,6 +538,9 @@ class Projectile:
     pierce: bool = False
     ttl: float = 2
     color: str = "#ffffff"
+    slow: float = 0
+    slow_duration: float = 0
+    stun: float = 0
 
 
 @dataclass

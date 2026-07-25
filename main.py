@@ -704,6 +704,9 @@ class MobaGame:
             if self.now() >= self.player.respawn_at:
                 self.respawn(self.player)
             return
+        if self.is_stunned(self.player):
+            self.regen_hero(self.player, dt)
+            return
 
         if self.recalling:
             if any(k in self.keys for k in {"w", "a", "s", "d", "up", "down", "left", "right"}):
@@ -725,8 +728,9 @@ class MobaGame:
         if "d" in self.keys or "right" in self.keys:
             dx += 1
         nx, ny = norm(dx, dy)
-        self.player.x = clamp(self.player.x + nx * self.player.speed * dt, 35, WIDTH - 35)
-        self.player.y = clamp(self.player.y + ny * self.player.speed * dt, 35, HEIGHT - 35)
+        speed = self.effective_speed(self.player)
+        self.player.x = clamp(self.player.x + nx * speed * dt, 35, WIDTH - 35)
+        self.player.y = clamp(self.player.y + ny * speed * dt, 35, HEIGHT - 35)
         self.regen_hero(self.player, dt)
 
     def update_enemy_hero(self, dt):
@@ -734,6 +738,9 @@ class MobaGame:
         if not hero.alive:
             if self.now() >= hero.respawn_at:
                 self.respawn(hero)
+            return
+        if self.is_stunned(hero):
+            self.regen_hero(hero, dt)
             return
 
         self.regen_hero(hero, dt)
@@ -755,8 +762,9 @@ class MobaGame:
         if hp_ratio >= 0.28 and math.hypot(dx, dy) < 150:
             return
         nx, ny = norm(dx, dy)
-        hero.x = clamp(hero.x + nx * hero.speed * dt, 35, WIDTH - 35)
-        hero.y = clamp(hero.y + ny * hero.speed * dt, 35, HEIGHT - 35)
+        speed = self.effective_speed(hero)
+        hero.x = clamp(hero.x + nx * speed * dt, 35, WIDTH - 35)
+        hero.y = clamp(hero.y + ny * speed * dt, 35, HEIGHT - 35)
 
     def regen_hero(self, hero, dt):
         if dist(hero, self.blue_core if hero.team == "blue" else self.red_core) < 120:
@@ -771,6 +779,8 @@ class MobaGame:
                     monster.respawn_at = 0
                     self.spawn_ring(monster.x, monster.y, monster.color, base_radius=52, ttl=0.28)
                 continue
+            if self.is_stunned(monster):
+                continue
 
             hero_targets = [
                 hero for hero in (self.player, self.enemy_hero)
@@ -783,6 +793,8 @@ class MobaGame:
     def update_minions(self, dt):
         for minion in self.minions:
             if not minion.alive:
+                continue
+            if self.is_stunned(minion):
                 continue
             target = self.nearest_enemy(minion, minion.attack_range, include_cores=True)
             if target:
@@ -800,8 +812,9 @@ class MobaGame:
                 minion.waypoint += 1
                 continue
             nx, ny = norm(dx, dy)
-            minion.x += nx * minion.speed * dt
-            minion.y += ny * minion.speed * dt
+            speed = self.effective_speed(minion)
+            minion.x += nx * speed * dt
+            minion.y += ny * speed * dt
 
     def update_towers(self):
         for tower in self.towers:
@@ -832,6 +845,7 @@ class MobaGame:
                 p.y += ny * p.speed * dt
                 if dist_xy(p.x, p.y, p.target.x, p.target.y) <= p.radius + p.target.radius:
                     self.apply_damage(p.target, p.damage, p.team)
+                    self.apply_projectile_control(p, p.target)
                     self.spawn_hit_fx(p.x, p.y, p.color)
                     continue
             else:
@@ -844,6 +858,7 @@ class MobaGame:
                 for target in targets:
                     if target.alive and dist_xy(p.x, p.y, target.x, target.y) <= p.radius + target.radius:
                         self.apply_damage(target, p.damage, p.team)
+                        self.apply_projectile_control(p, target)
                         self.spawn_hit_fx(p.x, p.y, p.color)
                         hit = not p.pierce
                         if hit:
@@ -853,6 +868,12 @@ class MobaGame:
             if -30 <= p.x <= WIDTH + 30 and -30 <= p.y <= HEIGHT + 30:
                 kept.append(p)
         self.projectiles = kept
+
+    def apply_projectile_control(self, projectile, target):
+        if projectile.stun:
+            self.apply_stun(target, projectile.stun)
+        if projectile.slow:
+            self.apply_slow(target, projectile.slow, projectile.slow_duration or 1.0)
 
     def update_effects(self, dt):
         kept = []
@@ -937,6 +958,10 @@ class MobaGame:
         hero.hp = hero.max_hp
         hero.respawn_at = 0
         hero.last_attacker_team = ""
+        hero.shield = 0
+        hero.stunned_until = 0
+        hero.slowed_until = 0
+        hero.slow_mult = 1.0
         if hero.team == "blue":
             hero.x, hero.y = 130, 580
         else:
@@ -988,7 +1013,34 @@ class MobaGame:
             return True
         return self.player.alive and not self.hero_hidden_from(hero, self.player)
 
+    def effective_speed(self, unit):
+        speed = unit.speed
+        if self.now() < unit.slowed_until:
+            speed *= unit.slow_mult
+        return speed
+
+    def is_stunned(self, unit):
+        return self.now() < unit.stunned_until
+
+    def apply_slow(self, target, multiplier=0.58, duration=1.2):
+        if not target.alive:
+            return
+        if self.now() >= target.slowed_until:
+            target.slow_mult = multiplier
+        else:
+            target.slow_mult = min(target.slow_mult, multiplier)
+        target.slowed_until = max(target.slowed_until, self.now() + duration)
+        self.spawn_ring(target.x, target.y, "#9ad7ff", base_radius=34, ttl=0.18)
+
+    def apply_stun(self, target, duration=0.55):
+        if not target.alive:
+            return
+        target.stunned_until = max(target.stunned_until, self.now() + duration)
+        self.spawn_ring(target.x, target.y, "#f7d765", base_radius=42, ttl=0.24)
+
     def unit_attack(self, unit, target):
+        if self.is_stunned(unit):
+            return
         current = self.now()
         if current < unit.next_attack:
             return
@@ -1117,6 +1169,17 @@ class MobaGame:
         for target in targets:
             if target.alive and dist_xy(x, y, target.x, target.y) <= radius + target.radius:
                 self.apply_damage(target, amount, team)
+
+    def control_area(self, team, x, y, radius, stun=0, slow=None, duration=1.0):
+        targets = self.enemies_of(team, include_cores=False)
+        if team != "neutral":
+            targets = targets + [monster for monster in self.neutral_monsters if monster.alive]
+        for target in targets:
+            if target.alive and dist_xy(x, y, target.x, target.y) <= radius + target.radius:
+                if stun:
+                    self.apply_stun(target, stun)
+                if slow:
+                    self.apply_slow(target, slow, duration)
 
     def skill_damage(self, hero, base, multiplier=1.0, skill_key=None):
         base_attack = HEROES[hero.hero_key]["attack_damage"]
@@ -1251,8 +1314,9 @@ class MobaGame:
         if hero.hero_key == "sentinel":
             self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=76, ttl=0.34)
             self.damage_area(hero.team, hero.x, hero.y, 72, self.skill_damage(hero, 68, skill_key="q"))
+            self.control_area(hero.team, hero.x, hero.y, 72, slow=0.62, duration=1.0)
             self.projectiles.append(
-                Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 54, skill_key="q"), 310, vx=vx, vy=vy, radius=14, pierce=True, ttl=0.85, color=hero.accent)
+                Projectile(hero.x, hero.y, hero.team, self.skill_damage(hero, 54, skill_key="q"), 310, vx=vx, vy=vy, radius=14, pierce=True, ttl=0.85, color=hero.accent, stun=0.25)
             )
             return
 
@@ -1282,6 +1346,8 @@ class MobaGame:
                         pierce=False,
                         ttl=0.9,
                         color=hero.accent,
+                        slow=0.72,
+                        slow_duration=0.75,
                     )
                 )
             return
@@ -1301,6 +1367,8 @@ class MobaGame:
                     pierce=True,
                     ttl=1.05,
                     color=hero.accent,
+                    slow=0.52,
+                    slow_duration=1.2,
                 )
             )
             return
@@ -1317,6 +1385,7 @@ class MobaGame:
         self.spawn_cast_fx(hero, "e")
         if hero.hero_key == "sentinel":
             hero.hp = min(hero.max_hp, hero.hp + 140 * self.skill_level_multiplier(hero, "e"))
+            hero.shield = max(hero.shield, 130 * self.skill_level_multiplier(hero, "e"))
             hero.next_attack = 0
             self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=94, ttl=0.36)
             self.spawn_particles(hero.x, hero.y, hero.accent, count=18, speed=90, spread=0.9, radius=3.0, ttl=0.36)
@@ -1325,7 +1394,9 @@ class MobaGame:
         if hero.hero_key == "arcanist":
             self.spawn_beam(hero.x, hero.y, hero.x, hero.y, hero.accent, width=8, ttl=0.2)
             hero.hp = min(hero.max_hp, hero.hp + 95 * self.skill_level_multiplier(hero, "e"))
+            hero.shield = max(hero.shield, 80 * self.skill_level_multiplier(hero, "e"))
             self.damage_area(hero.team, hero.x, hero.y, 82, self.skill_damage(hero, 54, skill_key="e"))
+            self.control_area(hero.team, hero.x, hero.y, 82, slow=0.55, duration=1.2)
             self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
             return
 
@@ -1339,6 +1410,7 @@ class MobaGame:
             hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
             self.spawn_beam(old_x, old_y, hero.x, hero.y, hero.accent, width=7, ttl=0.18)
             self.damage_area(hero.team, hero.x, hero.y, 54, self.skill_damage(hero, 72, skill_key="e"))
+            self.control_area(hero.team, hero.x, hero.y, 54, slow=0.5, duration=0.9)
             self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
             return
 
@@ -1367,6 +1439,7 @@ class MobaGame:
             self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=30, speed=165, spread=1.35, radius=3.4, ttl=0.48)
             self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=8, ttl=0.2)
             self.damage_area(hero.team, self.mouse_x, self.mouse_y, 136, self.skill_damage(hero, 154, 1.35, skill_key="r"), include_cores=True)
+            self.control_area(hero.team, self.mouse_x, self.mouse_y, 136, stun=0.65, slow=0.45, duration=1.4)
             return
 
         if hero.hero_key == "shade":
@@ -1380,6 +1453,7 @@ class MobaGame:
             self.spawn_ring(tx, ty, hero.accent, base_radius=88, ttl=0.32)
             self.spawn_particles(tx, ty, hero.accent, count=28, speed=220, spread=1.25, radius=3.2, ttl=0.38)
             self.damage_area(hero.team, tx, ty, 78, self.skill_damage(hero, 188, 1.5, skill_key="r"), include_cores=False)
+            self.control_area(hero.team, tx, ty, 78, slow=0.45, duration=1.0)
             return
 
         if hero.hero_key == "ranger":
@@ -1402,6 +1476,8 @@ class MobaGame:
                         pierce=True,
                         ttl=1.05,
                         color=hero.accent,
+                        slow=0.72,
+                        slow_duration=0.75,
                     )
                 )
             self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=84, ttl=0.28)
@@ -1412,12 +1488,14 @@ class MobaGame:
             self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=130, ttl=0.55)
             self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=28, speed=210, spread=1.4, radius=3.2, ttl=0.42)
             self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176, 1.45, skill_key="r"), include_cores=True)
+            self.control_area(hero.team, self.mouse_x, self.mouse_y, 120, stun=0.5, slow=0.5, duration=1.4)
             return
 
         self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=6, ttl=0.18)
         self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=112, ttl=0.48)
         self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=20, speed=190, spread=1.25, radius=3.0, ttl=0.36)
         self.damage_area(hero.team, self.mouse_x, self.mouse_y, 96, self.skill_damage(hero, 148, 1.45, skill_key="r"), include_cores=True)
+        self.control_area(hero.team, self.mouse_x, self.mouse_y, 96, stun=0.45, slow=0.55, duration=1.1)
 
     def cast_ai_bolt(self, hero, target):
         if not self.skill_ready(hero, "q"):
@@ -1436,6 +1514,8 @@ class MobaGame:
                 pierce=True,
                 ttl=0.9,
                 color="#ff6c7a",
+                slow=0.7,
+                slow_duration=0.7,
             )
         )
 
@@ -1484,6 +1564,14 @@ class MobaGame:
             target.last_attacker_team = attacker_team
         if target is self.player and self.recalling:
             self.cancel_recall()
+        if getattr(target, "shield", 0) > 0:
+            absorbed = min(target.shield, amount)
+            target.shield -= absorbed
+            amount -= absorbed
+            if absorbed > 0:
+                self.spawn_floating_text(target.x, target.y - 34, f"-{int(absorbed)} SH", "#8fd3ff", ttl=0.65)
+            if amount <= 0:
+                return
         damage_color = "#ff9a91" if attacker_team == "blue" else "#8fd3ff" if attacker_team == "red" else "#f7d765"
         self.spawn_damage_text(target.x, target.y - 18, amount, damage_color)
         if self.try_last_stand(target, amount):
@@ -1939,6 +2027,12 @@ class MobaGame:
         c.create_oval(hero.x - 10, hero.y - 10, hero.x + 10, hero.y + 10, fill="#1a2024", outline="")
         if self.hero_in_brush(hero):
             c.create_oval(hero.x - 30, hero.y - 30, hero.x + 30, hero.y + 30, outline="#76f4a0", width=2, dash=(6, 5))
+        if hero.shield > 0:
+            c.create_oval(hero.x - 34, hero.y - 34, hero.x + 34, hero.y + 34, outline="#8fd3ff", width=2)
+        if self.is_stunned(hero):
+            c.create_text(hero.x, hero.y - 82, text="STUN", fill="#f7d765", font=("Segoe UI", 8, "bold"))
+        elif self.now() < hero.slowed_until:
+            c.create_text(hero.x, hero.y - 82, text="SLOW", fill="#9ad7ff", font=("Segoe UI", 8, "bold"))
         self.draw_hero_plate(c, hero)
 
     def draw_hero_plate(self, c, hero):
