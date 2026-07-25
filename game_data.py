@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 WIDTH = 1100
 HEIGHT = 700
 FPS_MS = 16
+SKILL_MAX_LEVELS = {"q": 6, "e": 6, "r": 3}
+SKILL_UPGRADE_KEYS = {"z": "q", "x": "e", "c": "r"}
 
 
 def clamp(value, low, high):
