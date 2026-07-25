@@ -262,8 +262,10 @@ L10N = {
         "recall_cancel": "Recall interrupted",
         "recall_complete": "Returned to base",
         "not_enough_gold": "Not enough gold",
+        "need_component": "Need {item} first",
         "item_max": "Equipment is maxed",
         "bought": "Bought {item}",
+        "last_stand": "{name}'s Revive Plate activated",
         "shop": "SHOP",
         "level": "LV",
         "enemy_prefix": "Enemy {name}",
@@ -375,8 +377,10 @@ L10N = {
         "recall_cancel": "回城被打断",
         "recall_complete": "已回到基地",
         "not_enough_gold": "金币不足",
+        "need_component": "需要先购买{item}",
         "item_max": "装备已满级",
         "bought": "已购买 {item}",
+        "last_stand": "{name}触发复战甲",
         "shop": "商店",
         "level": "等级",
         "enemy_prefix": "敌方{name}",
@@ -472,6 +476,7 @@ class Hero(Unit):
     deaths: int = 0
     last_attacker_team: str = ""
     equipment: dict = field(default_factory=lambda: {"blade": 0, "boots": 0, "guard": 0})
+    item_passives_used: dict = field(default_factory=dict)
     respawn_at: float = 0
     cooldowns: dict = field(default_factory=lambda: {"q": 0, "e": 0, "r": 0})
     skill_levels: dict = field(default_factory=lambda: {"q": 1, "e": 1, "r": 0})

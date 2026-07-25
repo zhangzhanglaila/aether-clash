@@ -539,6 +539,10 @@ class MobaGame:
         if current_level >= item["max_stacks"]:
             self.show_message(self.text("item_max"))
             return False
+        missing_item = self.missing_item_requirement(self.player, item)
+        if missing_item:
+            self.show_message(self.text("need_component", item=self.item_name(missing_item)))
+            return False
         cost = item["cost"] + current_level * 70
         if self.player.gold < cost:
             self.show_message(self.text("not_enough_gold"))
@@ -561,6 +565,12 @@ class MobaGame:
             self.player.hp += item["max_hp"]
         self.show_message(self.text("bought", item=self.item_name(item_key)))
         return True
+
+    def missing_item_requirement(self, hero, item):
+        for required_key, required_level in item.get("requires", {}).items():
+            if hero.equipment.get(required_key, 0) < required_level:
+                return required_key
+        return None
 
     def select_shop_at(self, x, y):
         if not self.near_shop():
@@ -1446,6 +1456,7 @@ class MobaGame:
     def apply_damage(self, target, amount, attacker_team):
         if isinstance(target, (Tower, Core)):
             amount *= 1.35 if attacker_team == "blue" else 1.15
+        amount = self.apply_item_damage_modifiers(target, amount, attacker_team)
         was_alive = target.alive
         if isinstance(target, Hero):
             target.last_attacker_team = attacker_team
@@ -1453,6 +1464,8 @@ class MobaGame:
             self.cancel_recall()
         damage_color = "#ff9a91" if attacker_team == "blue" else "#8fd3ff" if attacker_team == "red" else "#f7d765"
         self.spawn_damage_text(target.x, target.y - 18, amount, damage_color)
+        if self.try_last_stand(target, amount):
+            return
         target.take_damage(amount)
         if was_alive and not target.alive:
             if isinstance(target, NeutralMonster) and attacker_team in {"blue", "red"}:
@@ -1492,6 +1505,41 @@ class MobaGame:
             text = self.text("neutral_slain", name=self.jungle_name(monster.camp_key), gold=gold, xp=xp)
             self.show_message(text)
             self.spawn_banner(text, monster.color, ttl=1.25)
+
+    def hero_for_team(self, team):
+        if team == "blue":
+            return self.player
+        if team == "red":
+            return self.enemy_hero
+        return None
+
+    def apply_item_damage_modifiers(self, target, amount, attacker_team):
+        attacker = self.hero_for_team(attacker_team)
+        if isinstance(target, NeutralMonster) and attacker:
+            hunter_level = attacker.equipment.get("hunter_charm", 0)
+            if hunter_level:
+                amount *= 1 + 0.18 * hunter_level
+        if isinstance(target, Hero):
+            bulwark_level = target.equipment.get("bulwark", 0)
+            if bulwark_level:
+                amount *= 0.9
+        return amount
+
+    def try_last_stand(self, target, amount):
+        if not isinstance(target, Hero):
+            return False
+        if target.hp - amount > 0:
+            return False
+        if target.equipment.get("revive_plate", 0) <= 0 or target.item_passives_used.get("revive_plate"):
+            return False
+        target.item_passives_used["revive_plate"] = True
+        target.hp = max(1, target.max_hp * 0.28)
+        self.spawn_particles(target.x, target.y, "#f5f1d7", count=30, speed=180, spread=1.25, radius=3.2, ttl=0.46)
+        self.spawn_ring(target.x, target.y, "#f5f1d7", base_radius=82, ttl=0.38)
+        text = self.text("last_stand", name=self.hero_name(target.hero_key))
+        self.show_message(text)
+        self.spawn_banner(text, "#f5f1d7", ttl=1.35)
+        return True
 
     def draw(self):
         c = self.canvas
@@ -1997,13 +2045,15 @@ class MobaGame:
             current_level = self.player.equipment[item_key]
             cost = item["cost"] + current_level * 70
             maxed = current_level >= item["max_stacks"]
-            fill = "#20282b" if not maxed else "#181d1f"
+            missing_item = self.missing_item_requirement(self.player, item)
+            locked = missing_item is not None
+            fill = "#20282b" if not maxed and not locked else "#181d1f"
             outline = "#f7d765" if item_key in recommended and not maxed else item["color"]
             c.create_rectangle(x1, y1, x2, y2, fill=fill, outline=outline, width=2)
             c.create_rectangle(x1 + 8, y1 + 10, x1 + 24, y1 + 26, fill=item["color"], outline="")
             c.create_text(x1 + 30, y1 + 13, text=self.item_name(item_key), fill="#f5f1d7", anchor="w", font=("Segoe UI", 8, "bold"))
             c.create_text(x1 + 30, y1 + 31, text=f"Lv {current_level}/{item['max_stacks']}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 8))
-            price = "MAX" if maxed else f"G {cost}"
+            price = "MAX" if maxed else self.item_name(missing_item) if locked else f"G {cost}"
             c.create_text(x2 - 6, y1 + 31, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 8, "bold"))
 
     def draw_scoreboard(self, c):
