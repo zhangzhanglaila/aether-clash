@@ -85,6 +85,7 @@ class MobaGame:
         self.mode_cards = []
         self.hero_cards = []
         self.shop_cards = []
+        self.utility_buttons = []
         self.recommended_buy_button = None
         self.skill_upgrade_buttons = []
         self.settlement_buttons = []
@@ -225,6 +226,7 @@ class MobaGame:
         self.float_texts = []
         self.banners = []
         self.shop_cards = []
+        self.utility_buttons = []
         self.recommended_buy_button = None
         self.skill_upgrade_buttons = []
         self.settlement_buttons = []
@@ -415,6 +417,8 @@ class MobaGame:
             return
         if self.state == "playing" and self.aiming_skill:
             self.cast_aiming_skill()
+            return
+        if self.state == "playing" and self.select_utility_at(self.mouse_x, self.mouse_y):
             return
         if self.state == "playing" and self.lock_target_at(self.mouse_x, self.mouse_y):
             return
@@ -639,6 +643,18 @@ class MobaGame:
         for item_key, left, top, right, bottom in self.shop_cards:
             if left <= x <= right and top <= y <= bottom:
                 return self.buy_item(item_key)
+        return False
+
+    def select_utility_at(self, x, y):
+        for action, left, top, right, bottom in self.utility_buttons:
+            if left <= x <= right and top <= y <= bottom:
+                if action == "f":
+                    self.cast_flash()
+                elif action == "g":
+                    self.cast_heal()
+                elif action == "b":
+                    self.start_recall()
+                return True
         return False
 
     def buy_recommended_item(self):
@@ -1796,10 +1812,9 @@ class MobaGame:
         self.spawn_particles(hero.x, hero.y, hero.accent, count=22, speed=170, spread=1.1, radius=3.0, ttl=0.42)
         self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=62, ttl=0.32)
         if not silent and hero.team == "blue":
-            text = self.text("level_up", name=self.hero_name(hero.hero_key), level=hero.level)
+            text = self.text("level_up", level=hero.level)
             self.show_message(text)
-            self.spawn_banner(text, hero.accent, ttl=1.4)
-            self.spawn_floating_text(hero.x, hero.y - 42, self.text("skill_point_gained"), "#f7d765", ttl=1.0)
+            self.spawn_floating_text(hero.x, hero.y - 42, text, "#f7d765", ttl=0.85)
 
     def apply_damage(self, target, amount, attacker_team):
         if isinstance(target, (Tower, Core)):
@@ -2309,6 +2324,7 @@ class MobaGame:
 
     def draw_ui(self, c):
         self.skill_upgrade_buttons = []
+        self.utility_buttons = []
         c.create_rectangle(0, 0, WIDTH, 50, fill="#0d1215", outline="")
         c.create_rectangle(398, 7, 702, 43, fill="#151b1e", outline="#394043", width=2)
         c.create_text(438, 25, text=str(self.player.kills), fill="#78a3ff", font=("Segoe UI", 16, "bold"))
@@ -2327,15 +2343,15 @@ class MobaGame:
         self.draw_minimap(c)
         self.draw_virtual_stick(c)
         self.draw_skill_preview(c)
-        self.draw_skill(c, WIDTH - 226, HEIGHT - 92, "F", self.summoner_cooldowns["f"], self.summoner_cd_durations["f"], 40)
-        self.draw_skill(c, WIDTH - 226, HEIGHT - 154, "G", self.summoner_cooldowns["g"], self.summoner_cd_durations["g"], 40)
+        self.draw_utility_row(c)
         self.draw_skill(c, WIDTH - 112, HEIGHT - 92, "Q", self.player.cooldowns["q"], self.skill_cooldown(self.player, "q"), 46, "q")
         self.draw_skill(c, WIDTH - 58, HEIGHT - 154, "E", self.player.cooldowns["e"], self.skill_cooldown(self.player, "e"), 46, "e")
         self.draw_skill(c, WIDTH - 172, HEIGHT - 154, "R", self.player.cooldowns["r"], self.skill_cooldown(self.player, "r"), 52, "r")
         self.draw_skill(c, WIDTH - 58, HEIGHT - 70, "A", self.player.next_attack, self.player.attack_cd, 42)
 
         if self.now() < self.message_until:
-            c.create_text(WIDTH // 2, 78, text=self.message, fill="#f5f1d7", font=("Segoe UI", 18, "bold"))
+            c.create_rectangle(386, 54, 714, 80, fill="#101416", outline="#394043")
+            c.create_text(WIDTH // 2, 67, text=self.message, fill="#f5f1d7", font=("Segoe UI", 11, "bold"))
 
         if self.recalling:
             self.draw_recall_indicator(c)
@@ -2359,6 +2375,20 @@ class MobaGame:
         c.create_oval(x - 28, y - 28, x + 28, y + 28, fill="#1f2a2e", outline="#d8cf9b", width=2)
         c.create_line(x - 50, y, x + 50, y, fill="#394043", width=2)
         c.create_line(x, y - 50, x, y + 50, fill="#394043", width=2)
+
+    def draw_utility_row(self, c):
+        y = HEIGHT - 38
+        items = [
+            ("f", WIDTH // 2 - 58, "F", self.summoner_cooldowns["f"], self.summoner_cd_durations["f"]),
+            ("g", WIDTH // 2, "G", self.summoner_cooldowns["g"], self.summoner_cd_durations["g"]),
+            ("b", WIDTH // 2 + 58, "B", 0, 1),
+        ]
+        for action, x, label, ready_at, full_cd in items:
+            size = 34
+            self.utility_buttons.append((action, x - size // 2 - 4, y - size // 2 - 4, x + size // 2 + 4, y + size // 2 + 4))
+            self.draw_skill(c, x, y, label, ready_at, full_cd, size)
+            if action == "b" and self.recalling:
+                c.create_oval(x - 23, y - 23, x + 23, y + 23, outline="#d8cf9b", width=2, dash=(5, 4))
 
     def draw_recall_indicator(self, c):
         pct = clamp(self.recall_elapsed / self.recall_duration, 0, 1)
