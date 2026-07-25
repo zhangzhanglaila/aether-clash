@@ -64,6 +64,8 @@ class MobaGame:
         self.recalling = False
         self.recall_elapsed = 0.0
         self.recall_duration = 3.0
+        self.enemy_recalling = False
+        self.enemy_recall_elapsed = 0.0
         self.summoner_cooldowns = {"f": 0, "g": 0}
         self.summoner_cd_durations = {"f": 12.0, "g": 18.0}
         self.aiming_skill = None
@@ -174,6 +176,8 @@ class MobaGame:
         self.message = ""
         self.recalling = False
         self.recall_elapsed = 0.0
+        self.enemy_recalling = False
+        self.enemy_recall_elapsed = 0.0
         self.summoner_cooldowns = {"f": 0, "g": 0}
         self.aiming_skill = None
         self.show_scoreboard = False
@@ -508,6 +512,43 @@ class MobaGame:
         self.spawn_particles(self.player.x, self.player.y, "#76f4d1", count=18, speed=150, spread=1.0, radius=3.2, ttl=0.38)
         self.spawn_ring(self.player.x, self.player.y, "#76f4d1", base_radius=92, ttl=0.34)
 
+    def start_enemy_recall(self):
+        if not self.enemy_hero.alive or self.enemy_recalling:
+            return
+        self.enemy_recalling = True
+        self.enemy_recall_elapsed = 0.0
+        if self.hero_visible_to_player(self.enemy_hero):
+            text = self.text("enemy_recall_start")
+            self.show_message(text)
+            self.spawn_banner(text, "#ffb0aa", ttl=1.0)
+        self.spawn_ring(self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", base_radius=72, ttl=0.32)
+
+    def cancel_enemy_recall(self, announce=True):
+        if not self.enemy_recalling:
+            return
+        self.enemy_recalling = False
+        self.enemy_recall_elapsed = 0.0
+        if announce and self.hero_visible_to_player(self.enemy_hero):
+            text = self.text("enemy_recall_cancel")
+            self.show_message(text)
+
+    def complete_enemy_recall(self):
+        if not self.enemy_recalling:
+            return
+        self.enemy_recalling = False
+        self.enemy_recall_elapsed = 0.0
+        self.enemy_hero.x, self.enemy_hero.y = 965, 120
+        self.enemy_hero.hp = self.enemy_hero.max_hp
+        self.enemy_hero.shield = 0
+        self.enemy_hero.stunned_until = 0
+        self.enemy_hero.slowed_until = 0
+        self.enemy_hero.slow_mult = 1.0
+        if self.hero_visible_to_player(self.enemy_hero):
+            text = self.text("enemy_recall_complete")
+            self.show_message(text)
+        self.spawn_particles(self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", count=18, speed=150, spread=1.0, radius=3.2, ttl=0.38)
+        self.spawn_ring(self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", base_radius=92, ttl=0.34)
+
     def summoner_ready(self, key):
         return self.now() >= self.summoner_cooldowns[key]
 
@@ -746,12 +787,23 @@ class MobaGame:
             if self.now() >= hero.respawn_at:
                 self.respawn(hero)
             return
+        if self.enemy_recalling:
+            if self.player.alive and dist(hero, self.player) < 230:
+                self.cancel_enemy_recall()
+                return
+            self.enemy_recall_elapsed += dt
+            if self.enemy_recall_elapsed >= self.recall_duration:
+                self.complete_enemy_recall()
+            return
         if self.is_stunned(hero):
             self.regen_hero(hero, dt)
             return
 
         self.regen_hero(hero, dt)
         hp_ratio = hero.hp / hero.max_hp
+        if hp_ratio < 0.18 and dist(hero, self.red_core) > 260 and (not self.player.alive or dist(hero, self.player) > 260):
+            self.start_enemy_recall()
+            return
         ai_state, target, tx, ty = self.enemy_ai_decision(hero, hp_ratio)
         if target:
             if dist(hero, target) <= hero.attack_range:
@@ -776,6 +828,10 @@ class MobaGame:
         if player_target and hp_ratio > 0.42:
             return "fight", player_target, player_target.x, player_target.y
 
+        defense_target = self.defense_target(hero)
+        if defense_target and hp_ratio > 0.34:
+            return "defend", defense_target, defense_target.x, defense_target.y
+
         low_minion = self.low_health_enemy_minion(hero)
         if low_minion:
             return "lane", low_minion, low_minion.x, low_minion.y
@@ -798,6 +854,26 @@ class MobaGame:
             return None
         candidates.sort(key=lambda minion: (dist(hero, minion), minion.hp))
         return candidates[0]
+
+    def defense_target(self, hero):
+        red_structures = [tower for tower in self.towers if tower.team == "red" and tower.alive]
+        red_structures.append(self.red_core)
+        threats = []
+        for structure in red_structures:
+            if not structure.alive:
+                continue
+            nearby_enemies = [
+                unit for unit in [self.player] + self.minions
+                if unit.alive and unit.team == "blue" and dist(unit, structure) <= structure.attack_range + 70 and not self.hero_hidden_from(unit, hero)
+            ]
+            for unit in nearby_enemies:
+                pressure = 0 if isinstance(unit, Minion) else -1
+                damaged = structure.hp / structure.max_hp
+                threats.append((damaged, pressure, dist(hero, structure), unit))
+        if not threats:
+            return None
+        threats.sort(key=lambda item: (item[0], item[1], item[2]))
+        return threats[0][3]
 
     def regen_hero(self, hero, dt):
         if dist(hero, self.blue_core if hero.team == "blue" else self.red_core) < 120:
@@ -1630,6 +1706,8 @@ class MobaGame:
             target.last_attacker_team = attacker_team
         if target is self.player and self.recalling:
             self.cancel_recall()
+        if target is self.enemy_hero and self.enemy_recalling and attacker_team == "blue":
+            self.cancel_enemy_recall()
         if getattr(target, "shield", 0) > 0:
             absorbed = min(target.shield, amount)
             target.shield -= absorbed
@@ -2102,6 +2180,11 @@ class MobaGame:
             c.create_text(hero.x, hero.y - 82, text="STUN", fill="#f7d765", font=("Segoe UI", 8, "bold"))
         elif self.now() < hero.slowed_until:
             c.create_text(hero.x, hero.y - 82, text="SLOW", fill="#9ad7ff", font=("Segoe UI", 8, "bold"))
+        if hero is self.enemy_hero and self.enemy_recalling:
+            pct = clamp(self.enemy_recall_elapsed / self.recall_duration, 0, 1)
+            c.create_rectangle(hero.x - 42, hero.y - 96, hero.x + 42, hero.y - 84, fill="#0d1215", outline="#ffb0aa")
+            c.create_rectangle(hero.x - 38, hero.y - 92, hero.x - 38 + 76 * pct, hero.y - 88, fill="#ffb0aa", outline="")
+            c.create_text(hero.x, hero.y - 106, text=self.text("recall_start"), fill="#ffb0aa", font=("Segoe UI", 8, "bold"))
         self.draw_hero_plate(c, hero)
 
     def draw_hero_plate(self, c, hero):
