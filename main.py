@@ -125,6 +125,9 @@ class MobaGame:
     def hero_skill(self, hero_key, skill_key):
         return L10N[self.language]["skills"][hero_key][skill_key]
 
+    def hero_skill_traits(self, hero_key):
+        return L10N[self.language]["skill_traits"][hero_key]
+
     def item_name(self, item_key):
         return L10N[self.language]["items"][item_key]
 
@@ -1838,6 +1841,9 @@ class MobaGame:
             c.create_text(left + 18, top + 158, text=f"Q {self.hero_skill(hero_key, 'q')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9, "bold"))
             c.create_text(left + 18, top + 178, text=f"E {self.hero_skill(hero_key, 'e')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9, "bold"))
             c.create_text(left + 156, top + 178, text=f"R {self.hero_skill(hero_key, 'r')}", fill="#f5d28a", anchor="w", font=("Segoe UI", 9, "bold"))
+            trait = self.hero_skill_traits(hero_key)
+            trait_size = 8 if len(trait) > 28 else 9
+            c.create_text(left + 18, top + 198, text=trait, fill=config["accent"], anchor="w", font=("Segoe UI", trait_size, "bold"))
 
         c.create_rectangle(358, 610, 742, 656, fill="#101416", outline="#394043")
         c.create_text(WIDTH // 2, 633, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))

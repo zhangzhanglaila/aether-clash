@@ -292,6 +292,13 @@ L10N = {
             "sentinel": {"q": "Anchor Wave", "e": "Fortify", "r": "Guardian Slam"},
             "shade": {"q": "Shadow Cut", "e": "Blink Strike", "r": "Void Execution"},
         },
+        "skill_traits": {
+            "vanguard": "Dash / area stun / durable engage",
+            "ranger": "Long range / mobility / slowing arrow storm",
+            "arcanist": "Burst mage / shield / storm damage over time",
+            "sentinel": "Tank / shield / slows and short stun",
+            "shade": "Assassin / blink / missing-health execution",
+        },
         "items": {
             "blade": "Blade",
             "longbow": "Longbow",
@@ -408,6 +415,13 @@ L10N = {
             "arcanist": {"q": "雷光法球", "e": "奥术护盾", "r": "雷暴领域"},
             "sentinel": {"q": "巨锚波", "e": "玄甲守护", "r": "守护重砸"},
             "shade": {"q": "影切", "e": "瞬步斩", "r": "虚空处决"},
+        },
+        "skill_traits": {
+            "vanguard": "突进 / 范围眩晕 / 耐打开团",
+            "ranger": "远程 / 位移 / 减速箭雨",
+            "arcanist": "爆发法师 / 护盾 / 雷暴持续伤害",
+            "sentinel": "坦克 / 护盾 / 减速短控",
+            "shade": "刺客 / 瞬步 / 已损生命斩杀",
         },
         "items": {
             "blade": "破军刃",
