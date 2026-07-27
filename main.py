@@ -12,18 +12,18 @@ from game_data import (
     NeutralMonster,
     Tower,
     WIDTH,
-    clamp,
-    dist,
 )
-from equipment_data import HERO_RECOMMENDED_ITEMS, ITEMS
+from equipment_data import ITEMS
 from ai import AiMixin
 from combat import CombatMixin
+from economy import EconomyMixin
 from input_handler import InputMixin
 from map_systems import MapSystemsMixin
+from player_actions import PlayerActionsMixin
 from rendering import RenderingMixin
 
 
-class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin):
+class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin, EconomyMixin, PlayerActionsMixin):
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Python MOBA Prototype")
@@ -293,169 +293,6 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
 
     def now(self):
         return time.perf_counter()
-
-    def near_shop(self):
-        return self.player.alive and dist(self.player, self.blue_core) <= 155
-
-    def start_recall(self):
-        if self.state != "playing" or not self.player.alive or self.recalling:
-            return
-        self.aiming_skill = None
-        self.recalling = True
-        self.recall_elapsed = 0.0
-        text = self.text("recall_start")
-        self.show_message(text)
-        self.spawn_banner(text, "#d8cf9b", ttl=1.2)
-        self.spawn_ring(self.player.x, self.player.y, "#d8cf9b", base_radius=72, ttl=0.36)
-        self.spawn_particles(self.player.x, self.player.y, "#d8cf9b", count=14, speed=120, spread=1.0, radius=2.8, ttl=0.34)
-
-    def cancel_recall(self, announce=True):
-        if not self.recalling:
-            return
-        self.recalling = False
-        self.recall_elapsed = 0.0
-        if announce:
-            text = self.text("recall_cancel")
-            self.show_message(text)
-            self.spawn_banner(text, "#ffb0aa", ttl=1.0)
-
-    def complete_recall(self):
-        if not self.recalling:
-            return
-        self.recalling = False
-        self.recall_elapsed = 0.0
-        self.player.x, self.player.y = 130, 580
-        self.player.hp = self.player.max_hp
-        text = self.text("recall_complete")
-        self.show_message(text)
-        self.spawn_banner(text, "#76f4d1", ttl=1.2)
-        self.spawn_particles(self.player.x, self.player.y, "#76f4d1", count=18, speed=150, spread=1.0, radius=3.2, ttl=0.38)
-        self.spawn_ring(self.player.x, self.player.y, "#76f4d1", base_radius=92, ttl=0.34)
-
-    def start_enemy_recall(self):
-        if not self.enemy_hero.alive or self.enemy_recalling:
-            return
-        self.enemy_recalling = True
-        self.enemy_recall_elapsed = 0.0
-        if self.hero_visible_to_player(self.enemy_hero):
-            text = self.text("enemy_recall_start")
-            self.show_message(text)
-            self.spawn_banner(text, "#ffb0aa", ttl=1.0)
-        self.spawn_ring(self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", base_radius=72, ttl=0.32)
-
-    def cancel_enemy_recall(self, announce=True):
-        if not self.enemy_recalling:
-            return
-        self.enemy_recalling = False
-        self.enemy_recall_elapsed = 0.0
-        if announce and self.hero_visible_to_player(self.enemy_hero):
-            text = self.text("enemy_recall_cancel")
-            self.show_message(text)
-
-    def complete_enemy_recall(self):
-        if not self.enemy_recalling:
-            return
-        self.enemy_recalling = False
-        self.enemy_recall_elapsed = 0.0
-        self.enemy_hero.x, self.enemy_hero.y = 965, 120
-        self.enemy_hero.hp = self.enemy_hero.max_hp
-        self.enemy_hero.shield = 0
-        self.enemy_hero.stunned_until = 0
-        self.enemy_hero.slowed_until = 0
-        self.enemy_hero.slow_mult = 1.0
-        if self.hero_visible_to_player(self.enemy_hero):
-            text = self.text("enemy_recall_complete")
-            self.show_message(text)
-        self.spawn_particles(self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", count=18, speed=150, spread=1.0, radius=3.2, ttl=0.38)
-        self.spawn_ring(self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", base_radius=92, ttl=0.34)
-
-    def summoner_ready(self, key):
-        return self.now() >= self.summoner_cooldowns[key]
-
-    def cast_flash(self):
-        if self.state != "playing" or not self.player.alive or not self.summoner_ready("f"):
-            return
-        self.summoner_cooldowns["f"] = self.now() + self.summoner_cd_durations["f"]
-        old_x, old_y = self.player.x, self.player.y
-        vx, vy = self.aim_vector(self.player)
-        distance = 170
-        self.player.x = clamp(self.player.x + vx * distance, 35, WIDTH - 35)
-        self.player.y = clamp(self.player.y + vy * distance, 35, HEIGHT - 35)
-        self.spawn_beam(old_x, old_y, self.player.x, self.player.y, "#f5f1d7", width=7, ttl=0.18)
-        self.spawn_particles(old_x, old_y, "#f5f1d7", count=14, speed=130, spread=1.0, radius=2.8, ttl=0.32)
-        self.spawn_particles(self.player.x, self.player.y, "#f5f1d7", count=18, speed=150, spread=1.15, radius=3.0, ttl=0.36)
-        self.spawn_ring(self.player.x, self.player.y, "#f5f1d7", base_radius=54, ttl=0.24)
-        self.show_message(self.text("flash"))
-
-    def cast_heal(self):
-        if self.state != "playing" or not self.player.alive or not self.summoner_ready("g"):
-            return
-        self.summoner_cooldowns["g"] = self.now() + self.summoner_cd_durations["g"]
-        amount = self.player.max_hp * 0.32
-        self.player.hp = min(self.player.max_hp, self.player.hp + amount)
-        self.spawn_particles(self.player.x, self.player.y, "#48d06b", count=22, speed=135, spread=1.05, radius=3.0, ttl=0.42)
-        self.spawn_ring(self.player.x, self.player.y, "#48d06b", base_radius=76, ttl=0.34)
-        self.spawn_floating_text(self.player.x, self.player.y - 24, f"+{int(amount)}", "#48d06b", ttl=0.75)
-        self.show_message(self.text("heal"))
-
-    def buy_item(self, item_key):
-        if self.state != "playing":
-            return False
-        if not self.near_shop():
-            self.show_message(self.text("need_base"))
-            return False
-        item = ITEMS[item_key]
-        current_level = self.player.equipment[item_key]
-        if current_level >= item["max_stacks"]:
-            self.show_message(self.text("item_max"))
-            return False
-        missing_item = self.missing_item_requirement(self.player, item)
-        if missing_item:
-            self.show_message(self.text("need_component", item=self.item_name(missing_item)))
-            return False
-        cost = item["cost"] + current_level * 70
-        if self.player.gold < cost:
-            self.show_message(self.text("not_enough_gold"))
-            return False
-
-        self.player.gold -= cost
-        self.player.equipment[item_key] += 1
-        if "attack_damage" in item:
-            self.player.attack_damage += item["attack_damage"]
-        if "skill_power" in item:
-            self.player.skill_power += item["skill_power"]
-        if "speed" in item:
-            self.player.speed += item["speed"]
-        if "attack_range" in item:
-            self.player.attack_range += item["attack_range"]
-        if "attack_cd_reduce" in item:
-            self.player.attack_cd = max(0.2, self.player.attack_cd - item["attack_cd_reduce"])
-        if "max_hp" in item:
-            self.player.max_hp += item["max_hp"]
-            self.player.hp += item["max_hp"]
-        self.show_message(self.text("bought", item=self.item_name(item_key)))
-        return True
-
-    def missing_item_requirement(self, hero, item):
-        for required_key, required_level in item.get("requires", {}).items():
-            if hero.equipment.get(required_key, 0) < required_level:
-                return required_key
-        return None
-
-    def buy_recommended_item(self):
-        recommended = HERO_RECOMMENDED_ITEMS.get(self.player.hero_key, [])
-        for item_key in recommended:
-            item = ITEMS[item_key]
-            if self.player.equipment.get(item_key, 0) >= item["max_stacks"]:
-                continue
-            missing_item = self.missing_item_requirement(self.player, item)
-            candidate = missing_item or item_key
-            if self.player.equipment.get(candidate, 0) >= ITEMS[candidate]["max_stacks"]:
-                continue
-            self.buy_item(candidate)
-            return True
-        self.show_message(self.text("no_recommended"))
-        return True
 
     def loop(self):
         current = time.perf_counter()
