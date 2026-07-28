@@ -23,6 +23,24 @@
 | It is intentionally readable: rendering, input, combat, AI, economy, map systems, and player actions are split into focused modules. | 它刻意保持可读：渲染、输入、战斗、AI、经济、地图系统和玩家动作已经拆成清晰模块。 |
 | It runs without installing packages, which makes it easy to clone, run, inspect, and modify. | 它不需要安装依赖，适合直接 clone、运行、读源码和继续改。 |
 
+### At a Glance / 一眼看懂
+
+| Heroes | Modes | Equipment | Languages | Dependencies | Entry |
+| --- | --- | --- | --- | --- | --- |
+| 5 | 3 | 12 | 中文 / English | 0 third-party packages | `python main.py` |
+
+```mermaid
+flowchart LR
+    A[Pick language<br/>选择语言] --> B[Choose mode<br/>选择模式]
+    B --> C[Choose hero<br/>选择英雄]
+    C --> D[Lane and jungle<br/>对线与野区]
+    D --> E[Gold + XP + Items<br/>金币 + 经验 + 装备]
+    E --> F[Skills + Levels<br/>技能 + 等级]
+    F --> G[Destroy towers<br/>摧毁防御塔]
+    G --> H[Destroy core<br/>摧毁水晶]
+    H --> I[Settlement<br/>结算]
+```
+
 > This is an original learning/prototype project. It does not use Honor of Kings assets, names, branding, or proprietary data.
 >
 > 这是一个原创学习/原型项目，不使用《王者荣耀》的素材、名称、品牌或专有数据。
