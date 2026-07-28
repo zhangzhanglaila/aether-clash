@@ -1,3 +1,4 @@
+import argparse
 import time
 import tkinter as tk
 from game_data import (
@@ -19,14 +20,24 @@ from combat import CombatMixin
 from economy import EconomyMixin
 from input_handler import InputMixin
 from map_systems import MapSystemsMixin
+from networking import NetworkMixin
 from player_actions import PlayerActionsMixin
 from rendering import RenderingMixin
 
 
-class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin, EconomyMixin, PlayerActionsMixin):
-    def __init__(self):
+class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin, EconomyMixin, PlayerActionsMixin, NetworkMixin):
+    def __init__(
+        self,
+        network_role=None,
+        network_address="127.0.0.1",
+        network_port=8765,
+        mode_key="rank",
+        hero_key="vanguard",
+        remote_hero_key="ranger",
+        language="zh",
+    ):
         self.root = tk.Tk()
-        self.root.title("Python MOBA Prototype")
+        self.root.title("Aether Clash")
         self.root.resizable(False, False)
         self.canvas = tk.Canvas(
             self.root,
@@ -64,7 +75,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
             "bot": [(92, 608), (250, 565), (920, 565), (1002, 112)],
         }
 
-        self.language = "zh"
+        self.language = language
         self.state = "language"
         self.language_buttons = []
         self.lobby_buttons = []
@@ -92,6 +103,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.beams = []
         self.float_texts = []
         self.banners = []
+        self.setup_network(network_role, network_address, network_port)
 
         self.root.bind("<KeyPress>", self.on_key_press)
         self.root.bind("<KeyRelease>", self.on_key_release)
@@ -99,6 +111,17 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.root.bind("<Button-1>", self.on_left_click)
         self.root.bind("<Button-3>", self.on_right_click)
         self.root.focus_force()
+        if self.network_role == "host":
+            self.selected_mode_key = mode_key
+            self.reset_match(hero_key, enemy_hero_key=remote_hero_key)
+            self.state = "playing"
+            self.start_network()
+        elif self.network_role == "client":
+            self.selected_mode_key = mode_key
+            self.reset_match(remote_hero_key, enemy_hero_key=hero_key)
+            self.player, self.enemy_hero = self.enemy_hero, self.player
+            self.state = "playing"
+            self.start_network()
 
     def text(self, key, **kwargs):
         value = L10N[self.language][key]
@@ -152,7 +175,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
             equipment={key: 0 for key in ITEMS},
         )
 
-    def reset_match(self, hero_key):
+    def reset_match(self, hero_key, enemy_hero_key="vanguard"):
         self.selected_hero_key = hero_key
         rule = self.mode_rule()
         self.match_over = False
@@ -167,12 +190,13 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.enemy_recalling = False
         self.enemy_recall_elapsed = 0.0
         self.summoner_cooldowns = {"f": 0, "g": 0}
+        self.enemy_summoner_cooldowns = {"f": 0, "g": 0}
         self.aiming_skill = None
         self.show_scoreboard = False
         self.locked_target = None
         self.player = self.make_hero(hero_key, "blue", 130, 580)
-        self.enemy_hero = self.make_hero("vanguard", "red", 965, 120)
-        self.enemy_hero.name = "Red Vanguard"
+        self.enemy_hero = self.make_hero(enemy_hero_key, "red", 965, 120)
+        self.enemy_hero.name = f"Red {HEROES[enemy_hero_key]['name']}"
         self.apply_starting_level(self.player, rule["start_level"])
         self.player.gold = rule["start_gold"]
         self.scale_hero_stats(self.enemy_hero, rule["enemy_stat_mult"])
@@ -301,8 +325,13 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         if self.state == "loading" and current - self.loading_started_at >= 1.15:
             self.state = "playing"
             self.last_time = time.perf_counter()
-        if self.state == "playing" and not self.match_over:
-            self.update(dt)
+        if self.state == "playing":
+            self.process_network_events()
+            if self.network_role == "client":
+                self.network_client_tick()
+            elif not self.match_over:
+                self.update(dt)
+                self.network_after_update()
         self.draw()
         self.root.after(FPS_MS, self.loop)
 
@@ -333,5 +362,28 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.message = text
         self.message_until = self.now() + 2.2
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run Aether Clash.")
+    role = parser.add_mutually_exclusive_group()
+    role.add_argument("--lan-host", action="store_true", help="Host a LAN 1v1 match as blue side.")
+    role.add_argument("--lan-join", metavar="HOST", help="Join a LAN 1v1 match as red side.")
+    parser.add_argument("--port", type=int, default=8765, help="LAN TCP port.")
+    parser.add_argument("--mode", choices=sorted(MODE_RULES), default="rank", help="Match mode.")
+    parser.add_argument("--hero", choices=sorted(HEROES), default="vanguard", help="Your hero.")
+    parser.add_argument("--remote-hero", choices=sorted(HEROES), default="ranger", help="Expected remote hero.")
+    parser.add_argument("--language", choices=("zh", "en"), default="zh", help="Initial UI language.")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    MobaGame().start()
+    args = parse_args()
+    role = "host" if args.lan_host else "client" if args.lan_join else None
+    MobaGame(
+        network_role=role,
+        network_address=args.lan_join or "127.0.0.1",
+        network_port=args.port,
+        mode_key=args.mode,
+        hero_key=args.hero,
+        remote_hero_key=args.remote_hero,
+        language=args.language,
+    ).start()

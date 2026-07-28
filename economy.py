@@ -4,7 +4,8 @@ from game_data import dist
 
 class EconomyMixin:
     def near_shop(self):
-        return self.player.alive and dist(self.player, self.blue_core) <= 155
+        home_core = self.blue_core if self.player.team == "blue" else self.red_core
+        return self.player.alive and dist(self.player, home_core) <= 155
 
 
     def buy_item(self, item_key):

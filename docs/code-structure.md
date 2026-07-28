@@ -17,6 +17,7 @@ Subsystem files:
 - `map_systems.py`: minion waves, minion movement, player movement, neutral monsters, towers, cores, death cleanup, respawn, brush visibility, and win checks.
 - `economy.py`: base shop range, item purchasing, item requirements, and recommended buying.
 - `player_actions.py`: recall, enemy recall, flash, heal, and summoner cooldown checks.
+- `networking.py`: LAN 1v1 JSON-over-TCP transport, input relay, host snapshots, and client snapshot application.
 - `game_data.py`: shared data classes, constants, map data, heroes, modes, jungle camps, brush zones, and localization text.
 - `equipment_data.py`: equipment definitions and recommended builds.
 

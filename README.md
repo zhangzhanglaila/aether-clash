@@ -78,6 +78,27 @@ cd aether-clash
 python main.py
 ```
 
+### 局域网 1v1
+
+房主是蓝方，负责权威计算整局游戏；加入者是红方，只发送输入并接收房主快照。
+
+房主电脑运行：
+
+```powershell
+python main.py --lan-host --hero vanguard --remote-hero ranger --mode rank
+```
+
+另一台电脑加入：
+
+```powershell
+python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mode rank
+```
+
+- 把 `192.168.1.20` 换成房主电脑的局域网 IP。
+- 默认端口是 `8765`，可用 `--port 9000` 修改。
+- 两边的 `--hero` 和 `--remote-hero` 要互相对应。
+- 如果 Windows 防火墙弹窗，允许 Python 访问局域网。
+
 ### 当前玩法
 
 - 启动后先选择 `中文` 或 `English`。
@@ -200,6 +221,27 @@ git clone https://github.com/zhangzhanglaila/aether-clash.git
 cd aether-clash
 python main.py
 ```
+
+### LAN 1v1
+
+The host plays blue side and runs the authoritative simulation. The joining player controls red side, sends input, and receives state snapshots from the host.
+
+On the host PC:
+
+```powershell
+python main.py --lan-host --hero vanguard --remote-hero ranger --mode rank
+```
+
+On the joining PC:
+
+```powershell
+python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mode rank
+```
+
+- Replace `192.168.1.20` with the host PC's LAN IP.
+- The default port is `8765`; use `--port 9000` to change it.
+- `--hero` and `--remote-hero` should match on both sides.
+- If Windows Firewall prompts, allow Python on the local network.
 
 ### Gameplay
 

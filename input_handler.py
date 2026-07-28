@@ -7,6 +7,18 @@ from game_data import HEROES, L10N, SKILL_UPGRADE_KEYS
 class InputMixin:
     def on_key_press(self, event):
         key = event.keysym.lower()
+        if getattr(self, "network_role", None) == "client" and self.state == "playing":
+            if key == "escape":
+                self.root.destroy()
+                return
+            if key == "tab":
+                self.show_scoreboard = True
+                return
+            self.keys.add(key)
+            if key in {"q", "e", "r"}:
+                self.aiming_skill = key
+            self.send_network_input({"kind": "key_press", "key": key, "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
+            return
         if self.state == "playing" and key == "tab":
             self.show_scoreboard = True
             return
@@ -80,6 +92,15 @@ class InputMixin:
 
     def on_key_release(self, event):
         key = event.keysym.lower()
+        if getattr(self, "network_role", None) == "client" and self.state == "playing":
+            if key == "tab":
+                self.show_scoreboard = False
+                return
+            self.keys.discard(key)
+            if key == self.aiming_skill:
+                self.aiming_skill = None
+            self.send_network_input({"kind": "key_release", "key": key, "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
+            return
         if key == "tab":
             self.show_scoreboard = False
             return
@@ -91,11 +112,17 @@ class InputMixin:
     def on_mouse_move(self, event):
         self.mouse_x = event.x
         self.mouse_y = event.y
+        if getattr(self, "network_role", None) == "client" and self.state == "playing":
+            self.send_network_input({"kind": "mouse", "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
 
 
     def on_left_click(self, event):
         self.mouse_x = event.x
         self.mouse_y = event.y
+        if getattr(self, "network_role", None) == "client" and self.state == "playing":
+            self.aiming_skill = None
+            self.send_network_input({"kind": "left_click", "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
+            return
         if self.state == "language":
             self.select_language_at(self.mouse_x, self.mouse_y)
             return
@@ -128,6 +155,10 @@ class InputMixin:
 
 
     def on_right_click(self, _event):
+        if getattr(self, "network_role", None) == "client" and self.state == "playing":
+            self.aiming_skill = None
+            self.send_network_input({"kind": "right_click", "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
+            return
         if self.state != "playing":
             return
         if self.match_over:

@@ -6,6 +6,9 @@ from game_data import HEIGHT, WIDTH, Hero, Minion, clamp, dist, norm
 class AiMixin:
     def update_enemy_hero(self, dt):
         hero = self.enemy_hero
+        if getattr(self, "network_role", None) == "host" and self.network_connected:
+            self.update_remote_hero(dt)
+            return
         if not hero.alive:
             if self.now() >= hero.respawn_at:
                 self.respawn(hero)
