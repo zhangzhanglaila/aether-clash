@@ -1,8 +1,8 @@
-# Python MOBA Sandbox
+# Aether Clash
 
-**A pure-Python MOBA you can run, study, and extend.**
+**A playable 2D MOBA arena you can run, study, and extend.**
 
-**一个可以直接运行、阅读源码并继续扩展的纯 Python MOBA 沙盒。**
+**一款可以直接运行、阅读源码并继续扩展的 2D MOBA 竞技场游戏。**
 
 ![Python](https://img.shields.io/badge/Python-3.x-3776AB)
 ![Dependencies](https://img.shields.io/badge/dependencies-standard%20library-2ea44f)
@@ -49,7 +49,7 @@ flowchart LR
 
 ### 项目简介
 
-`Python MOBA Sandbox` 是一个可直接运行的 2D MOBA 原型沙盒。当前重点是先完善 1v1 体验，再逐步扩展到 3v3 / 5v5，并在后续阶段迁移到 `pygame`。
+`Aether Clash` 是一个可直接运行的 2D MOBA 原型沙盒。当前重点是先完善 1v1 体验，再逐步扩展到 3v3 / 5v5，并在后续阶段迁移到 `pygame`。
 
 当前版本不需要安装第三方依赖，只使用 Python 标准库。
 
@@ -73,7 +73,8 @@ flowchart LR
 ### 快速开始
 
 ```powershell
-cd D:\game\python_moba
+git clone https://github.com/zhangzhanglaila/aether-clash.git
+cd aether-clash
 python main.py
 ```
 
@@ -171,7 +172,7 @@ python main.py
 
 ### Overview
 
-`Python MOBA Sandbox` is a runnable 2D MOBA prototype sandbox. The current focus is to polish the 1v1 experience first, then expand toward 3v3 / 5v5, and later migrate the renderer/runtime to `pygame`.
+`Aether Clash` is a runnable 2D MOBA prototype sandbox. The current focus is to polish the 1v1 experience first, then expand toward 3v3 / 5v5, and later migrate the renderer/runtime to `pygame`.
 
 The current version uses only the Python standard library. No third-party dependencies are required.
 
@@ -195,7 +196,8 @@ The current version uses only the Python standard library. No third-party depend
 ### Quick Start
 
 ```powershell
-cd D:\game\python_moba
+git clone https://github.com/zhangzhanglaila/aether-clash.git
+cd aether-clash
 python main.py
 ```
 
@@ -293,6 +295,7 @@ python main.py
 
 | Field | Value |
 | --- | --- |
+| Repository | `zhangzhanglaila/aether-clash` |
 | Language | Python |
 | UI runtime | `tkinter` |
 | Dependencies | Python standard library only |
