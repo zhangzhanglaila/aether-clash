@@ -8,6 +8,7 @@ from game_data import (
     HEIGHT,
     HEROES,
     Hero,
+    MODE_RULES,
     RIVER_POLYGON,
     SKILL_MAX_LEVELS,
     WIDTH,
@@ -201,6 +202,7 @@ class RenderingMixin:
         )
 
         self.hero_cards = []
+        hovered_hero_key = None
         card_w = 300
         card_h = 206
         gap_x = 28
@@ -217,6 +219,8 @@ class RenderingMixin:
             bottom = top + card_h
             self.hero_cards.append((hero_key, left, top, right, bottom))
             active = left <= self.mouse_x <= right and top <= self.mouse_y <= bottom
+            if active:
+                hovered_hero_key = hero_key
             outline = config["accent"] if active else "#394043"
             c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=outline, width=3)
             c.create_rectangle(left, top, right, top + 52, fill="#161c1f", outline="")
@@ -235,8 +239,25 @@ class RenderingMixin:
             trait_size = 8 if len(trait) > 28 else 9
             c.create_text(left + 18, top + 198, text=trait, fill=config["accent"], anchor="w", font=("Segoe UI", trait_size, "bold"))
 
-        c.create_rectangle(358, 610, 742, 656, fill="#101416", outline="#394043")
-        c.create_text(WIDTH // 2, 633, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+        if hovered_hero_key:
+            accent = HEROES[hovered_hero_key]["accent"]
+            c.create_rectangle(182, 592, 918, 672, fill="#101416", outline=accent, width=2)
+            c.create_text(
+                206,
+                612,
+                text=f"{self.hero_name(hovered_hero_key)} / {self.hero_role(hovered_hero_key)}",
+                fill="#f5f1d7",
+                anchor="w",
+                font=("Segoe UI", 12, "bold"),
+            )
+            detail = "   ".join(
+                f"{key.upper()} {self.hero_skill(hovered_hero_key, key)}: {self.hero_skill_detail(hovered_hero_key, key)}"
+                for key in ("q", "e", "r")
+            )
+            c.create_text(206, 644, text=detail, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=690)
+        else:
+            c.create_rectangle(358, 610, 742, 656, fill="#101416", outline="#394043")
+            c.create_text(WIDTH // 2, 633, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
 
     def draw_lobby(self, c):
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#12181b", outline="")
@@ -271,7 +292,8 @@ class RenderingMixin:
             c.create_rectangle(left, top, right, top + 38, fill="#151b1e", outline="")
             c.create_text(left + 22, top + 20, text=title, fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
             c.create_text(left + 22, top + 62, text=desc, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=right - left - 42)
-            c.create_line(left + 24, bottom - 28, right - 24, top + 96, fill=color, width=5)
+            c.create_text(left + 22, top + 102, text=self.mode_rule_summary(mode_key), fill="#d8cf9b", anchor="w", font=("Segoe UI", 8, "bold"), width=right - left - 42)
+            c.create_line(left + 24, bottom - 22, right - 24, top + 118, fill=color, width=5)
             c.create_oval(right - 74, bottom - 78, right - 24, bottom - 28, fill=color, outline="")
 
         self.lobby_buttons = [("start", 408, 548, 692, 616)]
@@ -285,16 +307,28 @@ class RenderingMixin:
         c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#101416", outline="")
         self.draw_menu_backdrop(c)
         progress = clamp((self.now() - self.loading_started_at) / 1.15, 0, 1)
+        enemy_key = self.enemy_hero.hero_key if self.enemy_hero else "vanguard"
         c.create_text(WIDTH // 2, 86, text=self.text("loading"), fill="#f5f1d7", font=("Segoe UI", 26, "bold"))
         c.create_rectangle(184, 154, 456, 514, fill="#20282b", outline=self.player.accent, width=3)
         c.create_rectangle(644, 154, 916, 514, fill="#20282b", outline="#e84d4f", width=3)
         self.draw_hero_portrait(c, 320, 300, HEROES[self.player.hero_key])
-        self.draw_hero_portrait(c, 780, 300, HEROES["vanguard"])
+        self.draw_hero_portrait(c, 780, 300, HEROES[enemy_key])
         c.create_text(320, 430, text=self.hero_name(self.player.hero_key), fill="#f5f1d7", font=("Segoe UI", 20, "bold"))
-        c.create_text(780, 430, text=self.text("enemy_prefix", name=self.hero_name("vanguard")), fill="#f5f1d7", font=("Segoe UI", 20, "bold"))
+        c.create_text(780, 430, text=self.text("enemy_prefix", name=self.hero_name(enemy_key)), fill="#f5f1d7", font=("Segoe UI", 20, "bold"))
         c.create_text(WIDTH // 2, 320, text=self.text("versus"), fill="#d8cf9b", font=("Segoe UI", 28, "bold"))
         c.create_rectangle(260, 590, 840, 606, fill="#252a2a", outline="")
         c.create_rectangle(260, 590, 260 + 580 * progress, 606, fill="#d8cf9b", outline="")
+
+    def mode_rule_summary(self, mode_key):
+        rule = MODE_RULES[mode_key]
+        structure_mult = min(rule["tower_hp_mult"], rule["core_hp_mult"])
+        return self.text(
+            "mode_rule_summary",
+            wave=f"{rule['spawn_interval']:.1f}",
+            gold=f"{rule['gold_mult']:.2g}",
+            xp=f"{rule['xp_mult']:.2g}",
+            structure=f"{structure_mult:.2g}",
+        )
 
     def draw_menu_backdrop(self, c):
         for path in self.paths.values():
@@ -503,7 +537,8 @@ class RenderingMixin:
         c.create_rectangle(24, 43, 24 + 276 * xp_pct, 47, fill="#b38cff", outline="")
         if self.player.skill_points > 0:
             c.create_text(720, 25, text=f"{self.text('skill_points')} {self.player.skill_points}", fill="#f7d765", anchor="w", font=("Segoe UI", 12, "bold"))
-        c.create_text(WIDTH - 24, 23, text=self.text("red"), fill="#ff7b7c", anchor="e", font=("Segoe UI", 13, "bold"))
+        enemy_text = f"{self.hero_name(self.enemy_hero.hero_key)}  {self.text('level')} {self.enemy_hero.level}  G {self.enemy_hero.gold}"
+        c.create_text(WIDTH - 24, 23, text=enemy_text, fill="#ff7b7c", anchor="e", font=("Segoe UI", 12, "bold"))
 
         self.draw_minimap(c)
         self.draw_virtual_stick(c)
@@ -639,9 +674,29 @@ class RenderingMixin:
             c.create_rectangle(x1, y1, x2, y2, fill=fill, outline=outline, width=2)
             c.create_rectangle(x1 + 8, y1 + 10, x1 + 24, y1 + 26, fill=item["color"], outline="")
             c.create_text(x1 + 30, y1 + 13, text=self.item_name(item_key), fill="#f5f1d7", anchor="w", font=("Segoe UI", 8, "bold"))
-            c.create_text(x1 + 30, y1 + 31, text=f"Lv {current_level}/{item['max_stacks']}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 8))
+            c.create_text(x1 + 30, y1 + 28, text=self.item_stat_text(item), fill="#cfd6cd", anchor="w", font=("Segoe UI", 7))
             price = "MAX" if maxed else self.item_name(missing_item) if locked else f"G {cost}"
-            c.create_text(x2 - 6, y1 + 31, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 8, "bold"))
+            c.create_text(x1 + 8, y2 - 6, text=f"Lv {current_level}/{item['max_stacks']}", fill="#9ea898", anchor="w", font=("Segoe UI", 7))
+            c.create_text(x2 - 6, y2 - 6, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 8, "bold"))
+
+    def item_stat_text(self, item):
+        parts = []
+        if item.get("attack_damage"):
+            parts.append(f"+{item['attack_damage']} {self.text('stat_attack')}")
+        if item.get("skill_power"):
+            parts.append(f"+{item['skill_power']} {self.text('stat_skill')}")
+        if item.get("max_hp"):
+            parts.append(f"+{item['max_hp']} {self.text('stat_hp')}")
+        if item.get("speed"):
+            parts.append(f"+{item['speed']} {self.text('stat_speed')}")
+        if item.get("attack_range"):
+            parts.append(f"+{item['attack_range']} {self.text('stat_range')}")
+        if item.get("attack_cd_reduce"):
+            parts.append(f"+{int(item['attack_cd_reduce'] * 100)} {self.text('stat_haste')}")
+        passive_key = item.get("passive")
+        if passive_key:
+            parts.append(self.text(f"passive_{passive_key}"))
+        return " / ".join(parts[:2]) if parts else "-"
 
     def draw_scoreboard(self, c):
         left = 218

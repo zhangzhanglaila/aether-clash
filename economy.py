@@ -44,7 +44,31 @@ class EconomyMixin:
             self.player.max_hp += item["max_hp"]
             self.player.hp += item["max_hp"]
         self.show_message(self.text("bought", item=self.item_name(item_key)))
+        gain_text = self.item_gain_text(item)
+        if gain_text:
+            self.spawn_floating_text(self.player.x, self.player.y - 72, gain_text, item["color"], ttl=1.05)
+            self.spawn_particles(self.player.x, self.player.y, item["color"], count=12, speed=95, spread=0.9, radius=2.4, ttl=0.28)
         return True
+
+
+    def item_gain_text(self, item):
+        parts = []
+        if item.get("attack_damage"):
+            parts.append(f"+{item['attack_damage']} {self.text('stat_attack')}")
+        if item.get("skill_power"):
+            parts.append(f"+{item['skill_power']} {self.text('stat_skill')}")
+        if item.get("max_hp"):
+            parts.append(f"+{item['max_hp']} {self.text('stat_hp')}")
+        if item.get("speed"):
+            parts.append(f"+{item['speed']} {self.text('stat_speed')}")
+        if item.get("attack_range"):
+            parts.append(f"+{item['attack_range']} {self.text('stat_range')}")
+        if item.get("attack_cd_reduce"):
+            parts.append(f"+{int(item['attack_cd_reduce'] * 100)} {self.text('stat_haste')}")
+        passive_key = item.get("passive")
+        if passive_key:
+            parts.append(self.text(f"passive_{passive_key}"))
+        return " / ".join(parts[:3])
 
 
     def missing_item_requirement(self, hero, item):

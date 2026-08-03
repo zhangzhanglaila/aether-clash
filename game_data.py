@@ -292,6 +292,16 @@ L10N = {
         "shop": "SHOP",
         "level": "LV",
         "enemy_prefix": "Enemy {name}",
+        "mode_rule_summary": "Wave {wave}s  Gold x{gold}  XP x{xp}  Structure x{structure}",
+        "stat_attack": "ATK",
+        "stat_skill": "SKILL",
+        "stat_hp": "HP",
+        "stat_speed": "SPD",
+        "stat_range": "RANGE",
+        "stat_haste": "HASTE",
+        "passive_damage_reduction": "Damage reduction",
+        "passive_last_stand": "Revive once",
+        "passive_neutral_hunter": "Jungle bonus",
         "hero_names": {
             "vanguard": "Vanguard",
             "ranger": "Star Ranger",
@@ -315,6 +325,38 @@ L10N = {
             "sentinel": {"q": "Anchor Wave", "e": "Fortify", "r": "Guardian Slam"},
             "shade": {"q": "Shadow Cut", "e": "Blink Strike", "r": "Void Execution"},
             "weaver": {"q": "Thread Lance", "e": "Grapple Vault", "r": "Snare Bloom"},
+        },
+        "skill_details": {
+            "vanguard": {
+                "q": "Piercing spear line damage.",
+                "e": "Short engage dash with impact damage.",
+                "r": "Targeted ground burst with stun and slow.",
+            },
+            "ranger": {
+                "q": "Three slowing arrows in a narrow fan.",
+                "e": "Quick dash and instant attack reset.",
+                "r": "Wide arrow storm that pierces and slows.",
+            },
+            "arcanist": {
+                "q": "Piercing storm orb with heavy slow.",
+                "e": "Heal, shield, and close-range pulse.",
+                "r": "Large thunder field with stun and damage over time.",
+            },
+            "sentinel": {
+                "q": "Close shockwave plus anchor projectile.",
+                "e": "Fortify with heal, shield, and attack reset.",
+                "r": "Wide guardian slam with strong control.",
+            },
+            "shade": {
+                "q": "Fast shadow slash projectile.",
+                "e": "Blink strike toward a nearby target or aim direction.",
+                "r": "Execute burst that scales with missing health.",
+            },
+            "weaver": {
+                "q": "Piercing thread lance that slows enemies.",
+                "e": "Long grapple vault with landing damage.",
+                "r": "Snare bloom that bursts and briefly locks enemies down.",
+            },
         },
         "skill_traits": {
             "vanguard": "Dash / area stun / durable engage",
@@ -427,6 +469,16 @@ L10N = {
         "shop": "商店",
         "level": "等级",
         "enemy_prefix": "敌方{name}",
+        "mode_rule_summary": "兵线 {wave}秒  金币 x{gold}  经验 x{xp}  建筑 x{structure}",
+        "stat_attack": "攻击",
+        "stat_skill": "法强",
+        "stat_hp": "生命",
+        "stat_speed": "移速",
+        "stat_range": "射程",
+        "stat_haste": "急速",
+        "passive_damage_reduction": "减伤被动",
+        "passive_last_stand": "复活被动",
+        "passive_neutral_hunter": "打野加成",
         "hero_names": {
             "vanguard": "铁卫",
             "ranger": "星弓",
@@ -450,6 +502,38 @@ L10N = {
             "sentinel": {"q": "巨锚波", "e": "玄甲守护", "r": "守护重砸"},
             "shade": {"q": "影切", "e": "瞬步斩", "r": "虚空处决"},
             "weaver": {"q": "索刃", "e": "钩索跃迁", "r": "星缚绽放"},
+        },
+        "skill_details": {
+            "vanguard": {
+                "q": "直线穿透长矛伤害。",
+                "e": "短距离冲锋并造成落点伤害。",
+                "r": "指定区域爆发，造成眩晕和减速。",
+            },
+            "ranger": {
+                "q": "窄扇形三连减速箭。",
+                "e": "快速位移并立即刷新普攻。",
+                "r": "大范围穿透箭雨，命中减速。",
+            },
+            "arcanist": {
+                "q": "穿透雷光法球并大幅减速。",
+                "e": "治疗、护盾和近身脉冲伤害。",
+                "r": "大范围雷暴，眩晕并持续伤害。",
+            },
+            "sentinel": {
+                "q": "近身震荡并发射巨锚波。",
+                "e": "回血、护盾并刷新普攻。",
+                "r": "大范围守护重砸，强控制。",
+            },
+            "shade": {
+                "q": "高速影刃投射伤害。",
+                "e": "向附近目标或瞄准方向瞬步斩。",
+                "r": "目标血量越低，处决爆发越高。",
+            },
+            "weaver": {
+                "q": "穿透索刃，命中后减速。",
+                "e": "长距离钩索跃迁，落点伤害。",
+                "r": "星索束缚范围爆发，短暂控制敌人。",
+            },
         },
         "skill_traits": {
             "vanguard": "突进 / 范围眩晕 / 耐打开团",

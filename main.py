@@ -138,6 +138,9 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
     def hero_skill(self, hero_key, skill_key):
         return L10N[self.language]["skills"][hero_key][skill_key]
 
+    def hero_skill_detail(self, hero_key, skill_key):
+        return L10N[self.language]["skill_details"][hero_key][skill_key]
+
     def hero_skill_traits(self, hero_key):
         return L10N[self.language]["skill_traits"][hero_key]
 
