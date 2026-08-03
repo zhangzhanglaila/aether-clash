@@ -503,6 +503,29 @@ class CombatMixin:
             )
             return
 
+        if hero.hero_key == "weaver":
+            self.spawn_beam(hero.x, hero.y, hero.x + vx * 220, hero.y + vy * 220, hero.accent, width=3, ttl=0.18)
+            self.spawn_beam(hero.x - vy * 9, hero.y + vx * 9, hero.x + vx * 205 - vy * 9, hero.y + vy * 205 + vx * 9, hero.accent, width=2, ttl=0.12)
+            self.spawn_beam(hero.x + vy * 9, hero.y - vx * 9, hero.x + vx * 205 + vy * 9, hero.y + vy * 205 - vx * 9, hero.accent, width=2, ttl=0.12)
+            self.projectiles.append(
+                Projectile(
+                    hero.x,
+                    hero.y,
+                    hero.team,
+                    self.skill_damage(hero, 84, skill_key="q"),
+                    610,
+                    vx=vx,
+                    vy=vy,
+                    radius=8,
+                    pierce=True,
+                    ttl=0.72,
+                    color=hero.accent,
+                    slow=0.58,
+                    slow_duration=0.9,
+                )
+            )
+            return
+
         if hero.hero_key == "ranger":
             angle = math.atan2(vy, vx)
             for offset in (-0.18, 0, 0.18):
@@ -591,6 +614,20 @@ class CombatMixin:
             self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
             return
 
+        if hero.hero_key == "weaver":
+            distance = 236
+            hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
+            hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
+            self.spawn_beam(old_x, old_y, hero.x, hero.y, hero.accent, width=5, ttl=0.22)
+            self.spawn_beam(old_x - vy * 14, old_y + vx * 14, hero.x - vy * 14, hero.y + vx * 14, hero.accent, width=2, ttl=0.18)
+            self.spawn_beam(old_x + vy * 14, old_y - vx * 14, hero.x + vy * 14, hero.y - vx * 14, hero.accent, width=2, ttl=0.18)
+            self.damage_area(hero.team, hero.x, hero.y, 62, self.skill_damage(hero, 66, skill_key="e"))
+            self.control_area(hero.team, hero.x, hero.y, 62, slow=0.52, duration=0.9)
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=64, ttl=0.28)
+            self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
+            hero.next_attack = 0
+            return
+
         distance = 168 if hero.hero_key == "ranger" else 120
         hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
         hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
@@ -636,6 +673,23 @@ class CombatMixin:
                 execute_mult += missing_hp * 0.85
             self.damage_area(hero.team, tx, ty, 78, self.skill_damage(hero, 188, 1.5 * execute_mult, skill_key="r"), include_cores=False)
             self.control_area(hero.team, tx, ty, 78, slow=0.45, duration=1.0)
+            return
+
+        if hero.hero_key == "weaver":
+            tx, ty = self.mouse_x, self.mouse_y
+            self.spawn_ring(tx, ty, hero.accent, base_radius=116, ttl=0.52)
+            self.spawn_ring(tx, ty, hero.accent, base_radius=64, ttl=0.34)
+            for angle in (0, math.pi / 3, math.pi * 2 / 3, math.pi, math.pi * 4 / 3, math.pi * 5 / 3):
+                x1 = tx + math.cos(angle) * 18
+                y1 = ty + math.sin(angle) * 18
+                x2 = tx + math.cos(angle) * 112
+                y2 = ty + math.sin(angle) * 112
+                self.spawn_beam(x1, y1, x2, y2, hero.accent, width=3, ttl=0.28)
+            self.spawn_beam(hero.x, hero.y, tx, ty, hero.accent, width=7, ttl=0.22)
+            self.spawn_particles(tx, ty, hero.accent, count=34, speed=210, spread=1.45, radius=2.9, ttl=0.45)
+            self.damage_area(hero.team, tx, ty, 108, self.skill_damage(hero, 164, 1.42, skill_key="r"), include_cores=True)
+            self.control_area(hero.team, tx, ty, 108, stun=0.55, slow=0.45, duration=1.25)
+            self.dot_area(hero.team, tx, ty, 108, self.skill_damage(hero, 20, 0.72, skill_key="r"), 1.8, color=hero.accent)
             return
 
         if hero.hero_key == "ranger":

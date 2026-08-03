@@ -36,6 +36,10 @@ class RenderingMixin:
                 c.create_line(hero.x, hero.y, hero.x + vx * 180, hero.y + vy * 180, fill=hero.accent, width=5, dash=(10, 6))
             elif hero.hero_key == "shade":
                 c.create_line(hero.x, hero.y, hero.x + vx * 165, hero.y + vy * 165, fill=hero.accent, width=4, dash=(8, 6))
+            elif hero.hero_key == "weaver":
+                c.create_line(hero.x, hero.y, hero.x + vx * 240, hero.y + vy * 240, fill=hero.accent, width=3, dash=(7, 5))
+                c.create_line(hero.x - vy * 10, hero.y + vx * 10, hero.x + vx * 220 - vy * 10, hero.y + vy * 220 + vx * 10, fill=hero.accent, width=1, dash=(7, 5))
+                c.create_line(hero.x + vy * 10, hero.y - vx * 10, hero.x + vx * 220 + vy * 10, hero.y + vy * 220 - vx * 10, fill=hero.accent, width=1, dash=(7, 5))
             else:
                 c.create_line(hero.x, hero.y, hero.x + vx * 260, hero.y + vy * 260, fill=hero.accent, width=3, dash=(8, 6))
             end_x = hero.x + vx * 260
@@ -47,11 +51,14 @@ class RenderingMixin:
                 c.create_oval(hero.x - radius, hero.y - radius, hero.x + radius, hero.y + radius, outline=hero.accent, width=2, dash=(8, 4))
                 c.create_oval(hero.x - 16, hero.y - 16, hero.x + 16, hero.y + 16, outline=hero.accent, width=2)
             else:
-                distance = 168 if hero.hero_key == "ranger" else 205 if hero.hero_key == "shade" else 120
+                distance = 168 if hero.hero_key == "ranger" else 205 if hero.hero_key == "shade" else 236 if hero.hero_key == "weaver" else 120
                 end_x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
                 end_y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
                 c.create_line(hero.x, hero.y, end_x, end_y, fill=hero.accent, width=4, dash=(10, 6))
-                c.create_oval(end_x - 16, end_y - 16, end_x + 16, end_y + 16, outline=hero.accent, width=2)
+                if hero.hero_key == "weaver":
+                    c.create_oval(end_x - 62, end_y - 62, end_x + 62, end_y + 62, outline=hero.accent, width=2, dash=(8, 4))
+                else:
+                    c.create_oval(end_x - 16, end_y - 16, end_x + 16, end_y + 16, outline=hero.accent, width=2)
         elif self.aiming_skill == "r":
             if hero.hero_key == "ranger":
                 angle = math.atan2(vy, vx)
@@ -62,6 +69,10 @@ class RenderingMixin:
             elif hero.hero_key == "shade":
                 c.create_line(hero.x, hero.y, self.mouse_x, self.mouse_y, fill=hero.accent, width=5, dash=(12, 8))
                 c.create_oval(self.mouse_x - 34, self.mouse_y - 34, self.mouse_x + 34, self.mouse_y + 34, outline=hero.accent, width=2)
+            elif hero.hero_key == "weaver":
+                c.create_line(hero.x, hero.y, self.mouse_x, self.mouse_y, fill=hero.accent, width=4, dash=(10, 7))
+                c.create_oval(self.mouse_x - 108, self.mouse_y - 108, self.mouse_x + 108, self.mouse_y + 108, outline=hero.accent, width=2, dash=(8, 4))
+                c.create_oval(self.mouse_x - 54, self.mouse_y - 54, self.mouse_x + 54, self.mouse_y + 54, outline=hero.accent, width=1, dash=(6, 5))
             else:
                 radius = 96 if hero.hero_key == "vanguard" else 120 if hero.hero_key == "arcanist" else 136
                 c.create_oval(self.mouse_x - radius, self.mouse_y - radius, self.mouse_x + radius, self.mouse_y + radius, outline=hero.accent, width=2, dash=(8, 4))

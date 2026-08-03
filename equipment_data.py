@@ -20,4 +20,5 @@ HERO_RECOMMENDED_ITEMS = {
     "arcanist": ["arcane_core", "storm_staff", "frost_orb", "boots"],
     "sentinel": ["guard", "bulwark", "revive_plate", "hunter_charm"],
     "shade": ["piercing_spear", "swift_boots", "blade", "hunter_charm"],
+    "weaver": ["swift_boots", "blade", "piercing_spear", "hunter_charm"],
 }

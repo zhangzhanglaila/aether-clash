@@ -27,7 +27,7 @@
 
 | Heroes | Modes | Equipment | Languages | Dependencies | Entry |
 | --- | --- | --- | --- | --- | --- |
-| 5 | 3 | 12 | 中文 / English | 0 third-party packages | `python main.py` |
+| 6 | 3 | 12 | 中文 / English | 0 third-party packages | `python main.py` |
 
 ```mermaid
 flowchart LR
@@ -41,9 +41,9 @@ flowchart LR
     H --> I[Settlement<br/>结算]
 ```
 
-> This is an original learning/prototype project. It does not use Honor of Kings assets, names, branding, or proprietary data.
+> This is an original learning/prototype project. It does not use Honor of Kings, Marvel, or other third-party IP assets, names, branding, character designs, or proprietary data.
 >
-> 这是一个原创学习/原型项目，不使用《王者荣耀》的素材、名称、品牌或专有数据。
+> 这是一个原创学习/原型项目，不使用《王者荣耀》、漫威或其他第三方 IP 的素材、名称、品牌、角色设计或专有数据。
 
 ## <a id="zh"></a>简体中文
 
@@ -138,6 +138,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 | 雷法 / Storm Arcanist | 法师 | 身板较脆但爆发高，穿透法球、护盾治疗和大范围雷暴。 |
 | 玄甲 / Iron Sentinel | 坦克 | 承伤能力强，近身震荡、防御强化和大范围控制。 |
 | 影刃 / Night Shade | 刺客 | 移速和爆发高，短距影切、突进斩击和处决爆发。 |
+| 星索 / Aether Weaver | 刺客 | 以太索刃、钩索跃迁和范围束缚，适合高机动切入。 |
 
 ### 模式区别
 
@@ -282,6 +283,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 | Storm Arcanist / 雷法 | Mage | Fragile burst caster with piercing orb, shield heal, and large thunder field. |
 | Iron Sentinel / 玄甲 | Tank | High durability with close-range shock, fortify, and wide-area control. |
 | Night Shade / 影刃 | Assassin | Fast burst hero with shadow slash, engage dash, and execute burst. |
+| Aether Weaver / 星索 | Assassin | Mobile skirmisher with thread lance, grapple vault, and area snare burst. |
 
 ### Match Modes
 
@@ -354,7 +356,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 
 | Metric | Value |
 | --- | --- |
-| Hero count | 5 |
+| Hero count | 6 |
 | Match modes | 3 |
 | Equipment items | 12 |
 | Supported languages | 简体中文, English |

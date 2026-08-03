@@ -93,6 +93,18 @@ HEROES = {
         "cooldowns": {"q": 2.6, "e": 5.0, "r": 12.0},
         "skills": {"q": "Shadow Cut", "e": "Blink Strike", "r": "Void Execution"},
     },
+    "weaver": {
+        "name": "Aether Weaver",
+        "role": "Assassin",
+        "accent": "#ff9f6e",
+        "hp": 455,
+        "speed": 236,
+        "attack_damage": 32,
+        "attack_range": 205,
+        "attack_cd": 0.34,
+        "cooldowns": {"q": 2.9, "e": 5.4, "r": 12.8},
+        "skills": {"q": "Thread Lance", "e": "Grapple Vault", "r": "Snare Bloom"},
+    },
 }
 
 
@@ -286,6 +298,7 @@ L10N = {
             "arcanist": "Storm Arcanist",
             "sentinel": "Iron Sentinel",
             "shade": "Night Shade",
+            "weaver": "Aether Weaver",
         },
         "hero_roles": {
             "vanguard": "Fighter",
@@ -293,6 +306,7 @@ L10N = {
             "arcanist": "Mage",
             "sentinel": "Tank",
             "shade": "Assassin",
+            "weaver": "Assassin",
         },
         "skills": {
             "vanguard": {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"},
@@ -300,6 +314,7 @@ L10N = {
             "arcanist": {"q": "Storm Orb", "e": "Arc Shield", "r": "Thunder Field"},
             "sentinel": {"q": "Anchor Wave", "e": "Fortify", "r": "Guardian Slam"},
             "shade": {"q": "Shadow Cut", "e": "Blink Strike", "r": "Void Execution"},
+            "weaver": {"q": "Thread Lance", "e": "Grapple Vault", "r": "Snare Bloom"},
         },
         "skill_traits": {
             "vanguard": "Dash / area stun / durable engage",
@@ -307,6 +322,7 @@ L10N = {
             "arcanist": "Burst mage / shield / storm damage over time",
             "sentinel": "Tank / shield / slows and short stun",
             "shade": "Assassin / blink / missing-health execution",
+            "weaver": "Assassin / grapple dash / snare burst",
         },
         "items": {
             "blade": "Blade",
@@ -417,6 +433,7 @@ L10N = {
             "arcanist": "雷法",
             "sentinel": "玄甲",
             "shade": "影刃",
+            "weaver": "星索",
         },
         "hero_roles": {
             "vanguard": "战士",
@@ -424,6 +441,7 @@ L10N = {
             "arcanist": "法师",
             "sentinel": "坦克",
             "shade": "刺客",
+            "weaver": "刺客",
         },
         "skills": {
             "vanguard": {"q": "破阵矛", "e": "铁壁冲锋", "r": "裂地击"},
@@ -431,6 +449,7 @@ L10N = {
             "arcanist": {"q": "雷光法球", "e": "奥术护盾", "r": "雷暴领域"},
             "sentinel": {"q": "巨锚波", "e": "玄甲守护", "r": "守护重砸"},
             "shade": {"q": "影切", "e": "瞬步斩", "r": "虚空处决"},
+            "weaver": {"q": "索刃", "e": "钩索跃迁", "r": "星缚绽放"},
         },
         "skill_traits": {
             "vanguard": "突进 / 范围眩晕 / 耐打开团",
@@ -438,6 +457,7 @@ L10N = {
             "arcanist": "爆发法师 / 护盾 / 雷暴持续伤害",
             "sentinel": "坦克 / 护盾 / 减速短控",
             "shade": "刺客 / 瞬步 / 已损生命斩杀",
+            "weaver": "刺客 / 钩索位移 / 束缚爆发",
         },
         "items": {
             "blade": "破军刃",
