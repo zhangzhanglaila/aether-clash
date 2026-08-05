@@ -154,7 +154,9 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - 三路兵线，包含近战兵、远程兵和周期性攻城兵。
 - 摧毁敌方高地塔后，对应路线会刷新强化兵。
 - 防御塔和双方主水晶都会自动攻击靠近的敌方单位。
+- 防御塔和水晶锁定英雄时会显示射程圈、锁定线和目标提示。
 - 野怪会攻击靠近英雄，死亡后按营地时间复活。
+- 小地图会显示野怪状态，死亡野怪会显示刷新倒计时。
 - 河道贯穿地图中心，草丛会影响远距离视野和锁定。
 - 英雄升级会提升生命、攻击、射程和技能战斗力。
 - 技能等级会提升伤害/治疗并缩短冷却。
@@ -302,7 +304,9 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - Three lanes with melee, ranged, and periodic siege minions.
 - Destroying an enemy base tower empowers the corresponding lane.
 - Towers and both cores automatically attack nearby enemy units.
+- Towers and cores show range, lock lines, and target warnings when targeting heroes.
 - Jungle monsters attack nearby heroes and respawn by camp timer.
+- Minimap shows jungle camp status and respawn countdowns for defeated monsters.
 - River and brush affect visibility and target locking.
 - Level-ups increase health, attack, range, and skill combat power.
 - Skill levels increase skill value and reduce cooldowns.

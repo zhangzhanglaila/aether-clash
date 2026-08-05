@@ -97,6 +97,7 @@ class RenderingMixin:
             return
 
         self.draw_map(c)
+        self.draw_structure_threats(c)
         for core in [self.blue_core, self.red_core]:
             self.draw_core(c, core)
         for tower in self.towers:
@@ -407,6 +408,25 @@ class RenderingMixin:
         c.create_rectangle(x, y, x + width, y + 6, fill="#252a2a", outline="")
         c.create_rectangle(x, y, x + width * pct, y + 6, fill=color, outline="")
 
+    def draw_structure_threats(self, c):
+        structures = [structure for structure in self.towers + [self.blue_core, self.red_core] if structure.alive]
+        for structure in structures:
+            target = self.nearest_enemy(structure, structure.attack_range, include_cores=False)
+            if not target or isinstance(target, Hero) and not self.hero_visible_to_player(target):
+                continue
+            is_player_target = target is self.player
+            is_visible_enemy_target = target is self.enemy_hero and self.hero_visible_to_player(self.enemy_hero)
+            if not is_player_target and not is_visible_enemy_target:
+                continue
+            color = "#ffb0aa" if structure.team == "red" else "#8fd3ff"
+            r = structure.attack_range
+            c.create_oval(structure.x - r, structure.y - r, structure.x + r, structure.y + r, outline=color, width=1, dash=(12, 8))
+            c.create_line(structure.x, structure.y, target.x, target.y, fill=color, width=2, dash=(8, 5))
+            lock_r = target.radius + 22
+            c.create_oval(target.x - lock_r, target.y - lock_r, target.x + lock_r, target.y + lock_r, outline=color, width=2)
+            if is_player_target:
+                c.create_text(target.x, target.y - 104, text=self.text("structure_targeted"), fill=color, font=("Segoe UI", 8, "bold"))
+
     def draw_core(self, c, core):
         color = team_color(core.team)
         c.create_oval(
@@ -623,7 +643,13 @@ class RenderingMixin:
             self.draw_minimap_dot(c, left, top, w, h, minion.x, minion.y, team_color(minion.team), 2)
         for monster in self.neutral_monsters:
             color = monster.color if monster.alive else "#4a4f4d"
-            self.draw_minimap_dot(c, left, top, w, h, monster.x, monster.y, color, 3)
+            radius = 5 if monster.camp_key == "ancient_guard" else 3
+            self.draw_minimap_dot(c, left, top, w, h, monster.x, monster.y, color, radius)
+            if not monster.alive and monster.respawn_at:
+                mx = left + monster.x / WIDTH * w
+                my = top + monster.y / HEIGHT * h
+                remaining = max(0, int(monster.respawn_at - self.now() + 1))
+                c.create_text(mx, my - 8, text=str(remaining), fill="#d8cf9b", font=("Segoe UI", 6, "bold"))
         self.draw_minimap_dot(c, left, top, w, h, self.blue_core.x, self.blue_core.y, "#78a3ff", 5)
         self.draw_minimap_dot(c, left, top, w, h, self.red_core.x, self.red_core.y, "#ff7b7c", 5)
         if self.player.alive:

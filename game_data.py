@@ -319,6 +319,7 @@ L10N = {
         "damage_taken": "Taken",
         "monsters_slain": "Jungle",
         "gold_earned": "Gold earned",
+        "structure_targeted": "STRUCTURE TARGET",
         "hero_names": {
             "vanguard": "Vanguard",
             "ranger": "Star Ranger",
@@ -513,6 +514,7 @@ L10N = {
         "damage_taken": "承伤",
         "monsters_slain": "野怪",
         "gold_earned": "总经济",
+        "structure_targeted": "防御塔锁定",
         "hero_names": {
             "vanguard": "铁卫",
             "ranger": "星弓",
