@@ -183,7 +183,6 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 | [`docs/code-structure.md`](docs/code-structure.md) | 模块边界说明。 |
 | [`docs/hok-inspired-roadmap.md`](docs/hok-inspired-roadmap.md) | 后续玩法完善计划。 |
 | [`docs/polish-gap-analysis.md`](docs/polish-gap-analysis.md) | 当前体验差距与玩法修复清单。 |
-| [`docs/repository-growth-plan.md`](docs/repository-growth-plan.md) | 仓库吸引力、发布和版本完善计划。 |
 
 ### 开发路线
 
