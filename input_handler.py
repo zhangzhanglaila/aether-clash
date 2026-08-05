@@ -11,6 +11,9 @@ class InputMixin:
             if key == "escape":
                 self.root.destroy()
                 return
+            if key == "h":
+                self.tutorial_visible = not self.tutorial_visible
+                return
             if key == "tab":
                 self.show_scoreboard = True
                 return
@@ -21,6 +24,9 @@ class InputMixin:
             return
         if self.state == "playing" and key == "tab":
             self.show_scoreboard = True
+            return
+        if self.state == "playing" and key == "h":
+            self.tutorial_visible = not self.tutorial_visible
             return
         if self.state == "language":
             if key in {"1", "c"}:
@@ -121,6 +127,8 @@ class InputMixin:
         self.mouse_y = event.y
         if getattr(self, "network_role", None) == "client" and self.state == "playing":
             self.aiming_skill = None
+            if self.select_tutorial_at(self.mouse_x, self.mouse_y):
+                return
             self.send_network_input({"kind": "left_click", "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
             return
         if self.state == "language":
@@ -136,6 +144,8 @@ class InputMixin:
             return
         if self.state == "playing" and self.match_over:
             self.select_settlement_at(self.mouse_x, self.mouse_y)
+            return
+        if self.state == "playing" and self.select_tutorial_at(self.mouse_x, self.mouse_y):
             return
         if self.state == "playing" and self.recalling:
             self.cancel_recall()
@@ -267,6 +277,16 @@ class InputMixin:
                     self.show_scoreboard = False
                     self.aiming_skill = None
                 return True
+        return False
+
+
+    def select_tutorial_at(self, x, y):
+        if not self.tutorial_visible or not self.tutorial_close_button:
+            return False
+        left, top, right, bottom = self.tutorial_close_button
+        if left <= x <= right and top <= y <= bottom:
+            self.tutorial_visible = False
+            return True
         return False
 
 

@@ -217,9 +217,11 @@ class MapSystemsMixin:
                     shutdown_streak = hero.kill_streak
                     hero.kill_streak = 0
                     killer.gold += 80
+                    self.record_reward(killer.team, 80, 0)
                     self.spawn_reward_text(hero.x, hero.y, 80, 0)
                     if killer.team == "red":
                         self.gain_xp(killer, 120)
+                        self.record_reward(killer.team, 0, 120)
                         self.spawn_reward_text(hero.x, hero.y - 18, 0, 120)
                     defeat_text = self.text(
                         "defeated",

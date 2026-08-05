@@ -68,6 +68,10 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.aiming_skill = None
         self.show_scoreboard = False
         self.locked_target = None
+        self.tutorial_visible = True
+        self.tutorial_close_button = None
+        self.skill_detail_buttons = []
+        self.match_stats = self.blank_match_stats()
 
         self.paths = {
             "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],
@@ -128,6 +132,12 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         if kwargs:
             return value.format(**kwargs)
         return value
+
+    def blank_match_stats(self):
+        return {
+            "blue": {"damage_dealt": 0, "damage_taken": 0, "gold_earned": 0, "xp_earned": 0, "towers_destroyed": 0, "monsters_slain": 0},
+            "red": {"damage_dealt": 0, "damage_taken": 0, "gold_earned": 0, "xp_earned": 0, "towers_destroyed": 0, "monsters_slain": 0},
+        }
 
     def hero_name(self, hero_key):
         return L10N[self.language]["hero_names"][hero_key]
@@ -197,6 +207,10 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.aiming_skill = None
         self.show_scoreboard = False
         self.locked_target = None
+        self.tutorial_visible = True
+        self.tutorial_close_button = None
+        self.skill_detail_buttons = []
+        self.match_stats = self.blank_match_stats()
         self.player = self.make_hero(hero_key, "blue", 130, 580)
         self.enemy_hero = self.make_hero(enemy_hero_key, "red", 965, 120)
         self.enemy_hero.name = f"Red {HEROES[enemy_hero_key]['name']}"

@@ -524,6 +524,7 @@ class RenderingMixin:
     def draw_ui(self, c):
         self.skill_upgrade_buttons = []
         self.utility_buttons = []
+        self.skill_detail_buttons = []
         c.create_rectangle(0, 0, WIDTH, 50, fill="#0d1215", outline="")
         c.create_rectangle(398, 7, 702, 43, fill="#151b1e", outline="#394043", width=2)
         c.create_text(438, 25, text=str(self.player.kills), fill="#78a3ff", font=("Segoe UI", 16, "bold"))
@@ -548,6 +549,7 @@ class RenderingMixin:
         self.draw_skill(c, WIDTH - 58, HEIGHT - 154, "E", self.player.cooldowns["e"], self.skill_cooldown(self.player, "e"), 46, "e")
         self.draw_skill(c, WIDTH - 172, HEIGHT - 154, "R", self.player.cooldowns["r"], self.skill_cooldown(self.player, "r"), 52, "r")
         self.draw_skill(c, WIDTH - 58, HEIGHT - 70, "A", self.player.next_attack, self.player.attack_cd, 42)
+        self.draw_skill_tooltip(c)
 
         if self.now() < self.message_until:
             c.create_rectangle(386, 54, 714, 80, fill="#101416", outline="#394043")
@@ -561,6 +563,9 @@ class RenderingMixin:
 
         if self.show_scoreboard:
             self.draw_scoreboard(c)
+
+        if self.tutorial_visible and not self.match_over:
+            self.draw_tutorial(c)
 
         if self.match_over:
             self.draw_settlement(c)
@@ -678,6 +683,7 @@ class RenderingMixin:
             price = "MAX" if maxed else self.item_name(missing_item) if locked else f"G {cost}"
             c.create_text(x1 + 8, y2 - 6, text=f"Lv {current_level}/{item['max_stacks']}", fill="#9ea898", anchor="w", font=("Segoe UI", 7))
             c.create_text(x2 - 6, y2 - 6, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 8, "bold"))
+        self.draw_shop_detail(c)
 
     def item_stat_text(self, item):
         parts = []
@@ -697,6 +703,47 @@ class RenderingMixin:
         if passive_key:
             parts.append(self.text(f"passive_{passive_key}"))
         return " / ".join(parts[:2]) if parts else "-"
+
+    def draw_shop_detail(self, c):
+        hovered = None
+        for item_key, left, top, right, bottom in self.shop_cards:
+            if left <= self.mouse_x <= right and top <= self.mouse_y <= bottom:
+                hovered = item_key
+                break
+        if not hovered:
+            return
+        item = ITEMS[hovered]
+        left = WIDTH - 644
+        top = HEIGHT - 356
+        right = left + 216
+        bottom = top + 134
+        c.create_rectangle(left, top, right, bottom, fill="#101416", outline=item["color"], width=2)
+        c.create_text(left + 14, top + 18, text=self.item_name(hovered), fill="#f5f1d7", anchor="w", font=("Segoe UI", 12, "bold"))
+        c.create_text(left + 14, top + 44, text=f"{self.text('equipment_stats')}: {self.full_item_stat_text(item)}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=188)
+        y = top + 78
+        missing_item = self.missing_item_requirement(self.player, item)
+        if missing_item:
+            c.create_text(left + 14, y, text=self.text("equipment_requires", item=self.item_name(missing_item)), fill="#ffb0aa", anchor="w", font=("Segoe UI", 9, "bold"))
+            y += 22
+        passive_key = item.get("passive")
+        if passive_key:
+            c.create_text(left + 14, y, text=f"{self.text('equipment_passive')}: {self.text(f'passive_{passive_key}')}", fill="#f7d765", anchor="w", font=("Segoe UI", 9, "bold"), width=188)
+
+    def full_item_stat_text(self, item):
+        parts = []
+        if item.get("attack_damage"):
+            parts.append(f"+{item['attack_damage']} {self.text('stat_attack')}")
+        if item.get("skill_power"):
+            parts.append(f"+{item['skill_power']} {self.text('stat_skill')}")
+        if item.get("max_hp"):
+            parts.append(f"+{item['max_hp']} {self.text('stat_hp')}")
+        if item.get("speed"):
+            parts.append(f"+{item['speed']} {self.text('stat_speed')}")
+        if item.get("attack_range"):
+            parts.append(f"+{item['attack_range']} {self.text('stat_range')}")
+        if item.get("attack_cd_reduce"):
+            parts.append(f"+{int(item['attack_cd_reduce'] * 100)} {self.text('stat_haste')}")
+        return " / ".join(parts) if parts else "-"
 
     def draw_scoreboard(self, c):
         left = 218
@@ -756,8 +803,9 @@ class RenderingMixin:
 
     def draw_settlement_stats(self, c, hero, left, top, color):
         width = 238
+        height = 206
         enemy_towers_destroyed = sum(1 for tower in self.towers if tower.team != hero.team and not tower.alive)
-        c.create_rectangle(left, top, left + width, top + 176, fill="#101416", outline=color, width=2)
+        c.create_rectangle(left, top, left + width, top + height, fill="#101416", outline=color, width=2)
         name = self.hero_name(hero.hero_key)
         if hero.team == "red":
             name = self.text("enemy_prefix", name=name)
@@ -765,12 +813,15 @@ class RenderingMixin:
         lines = [
             f"{self.text('level')} {hero.level}",
             f"{self.text('kills')} {hero.kills} / {self.text('deaths')} {hero.deaths}",
-            f"{self.text('gold')} {hero.gold}",
+            f"{self.text('gold_earned')} {int(self.match_stats[hero.team]['gold_earned'])}",
             f"{self.text('destroyed_towers')} {enemy_towers_destroyed}",
+            f"{self.text('damage_dealt')} {int(self.match_stats[hero.team]['damage_dealt'])}",
+            f"{self.text('damage_taken')} {int(self.match_stats[hero.team]['damage_taken'])}",
+            f"{self.text('monsters_slain')} {int(self.match_stats[hero.team]['monsters_slain'])}",
             " / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r")),
         ]
         for index, line in enumerate(lines):
-            c.create_text(left + 18, top + 58 + index * 24, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+            c.create_text(left + 18, top + 52 + index * 18, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 10))
 
     def draw_settlement_button(self, c, action, x, y, width, height, color):
         self.settlement_buttons.append((action, x, y, x + width, y + height))
@@ -805,6 +856,7 @@ class RenderingMixin:
         elif not ready:
             c.create_text(x, y + 25, text=f"{left:.1f}", fill="#ffffff", font=("Segoe UI", 8, "bold"))
         if skill_key is not None:
+            self.skill_detail_buttons.append((skill_key, x - r - 8, y - r - 8, x + r + 8, y + r + 28))
             level = self.player.skill_levels.get(skill_key, 0)
             max_level = SKILL_MAX_LEVELS[skill_key]
             c.create_text(x, y + r + 18, text=f"Lv {level}/{max_level}", fill="#cfd6cd", font=("Segoe UI", 8, "bold"))
@@ -814,4 +866,39 @@ class RenderingMixin:
                 self.skill_upgrade_buttons.append((skill_key, px - 10, py - 10, px + 10, py + 10))
                 c.create_oval(px - 10, py - 10, px + 10, py + 10, fill="#f7d765", outline="#101416", width=2)
                 c.create_text(px, py - 1, text="+", fill="#101416", font=("Segoe UI", 13, "bold"))
+
+    def draw_skill_tooltip(self, c):
+        hovered = None
+        for skill_key, left, top, right, bottom in self.skill_detail_buttons:
+            if left <= self.mouse_x <= right and top <= self.mouse_y <= bottom:
+                hovered = skill_key
+                break
+        if not hovered:
+            return
+        level = self.player.skill_levels.get(hovered, 0)
+        title = self.text(
+            "skill_tooltip_title",
+            key=hovered.upper(),
+            name=self.hero_skill(self.player.hero_key, hovered),
+            level=level,
+            max_level=SKILL_MAX_LEVELS[hovered],
+        )
+        body = self.text("skill_tooltip_body", detail=self.hero_skill_detail(self.player.hero_key, hovered))
+        left = WIDTH - 392
+        top = HEIGHT - 292
+        c.create_rectangle(left, top, left + 344, top + 92, fill="#101416", outline=self.player.accent, width=2)
+        c.create_text(left + 14, top + 20, text=title, fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
+        c.create_text(left + 14, top + 54, text=body, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=314)
+
+    def draw_tutorial(self, c):
+        left, top, right, bottom = 214, 88, 592, 244
+        c.create_rectangle(left, top, right, bottom, fill="#101416", outline="#d8cf9b", width=2)
+        c.create_text(left + 18, top + 22, text=self.text("tutorial_title"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        for index, line in enumerate(self.text("tutorial_lines")):
+            c.create_text(left + 20, top + 52 + index * 22, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=338)
+        bx1, by1, bx2, by2 = left + 18, bottom - 30, right - 18, bottom - 8
+        self.tutorial_close_button = (bx1, by1, bx2, by2)
+        hovered = bx1 <= self.mouse_x <= bx2 and by1 <= self.mouse_y <= by2
+        c.create_rectangle(bx1, by1, bx2, by2, fill="#27343a" if hovered else "#1b2326", outline="#394043")
+        c.create_text((bx1 + bx2) / 2, (by1 + by2) / 2, text=self.text("tutorial_close"), fill="#d8cf9b", font=("Segoe UI", 9, "bold"))
 

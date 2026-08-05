@@ -774,6 +774,7 @@ class CombatMixin:
             xp = int(120 * rule["xp_mult"])
         if gold or xp:
             self.player.gold += gold
+            self.record_reward("blue", gold, xp)
             self.gain_xp(self.player, xp)
             self.spawn_reward_text(target.x, target.y, gold, xp)
 
@@ -834,6 +835,7 @@ class CombatMixin:
                 return
         damage_color = "#ff9a91" if attacker_team == "blue" else "#8fd3ff" if attacker_team == "red" else "#f7d765"
         self.spawn_damage_text(target.x, target.y - 18, amount, damage_color)
+        self.record_damage_stats(target, amount, attacker_team)
         if self.try_last_stand(target, amount):
             return
         target.take_damage(amount)
@@ -844,6 +846,8 @@ class CombatMixin:
             if attacker_team == "blue" and target.team == "red":
                 self.reward_player(target)
             if isinstance(target, Tower):
+                if attacker_team in {"blue", "red"}:
+                    self.match_stats[attacker_team]["towers_destroyed"] += 1
                 text = self.text("destroyed", name=target.name)
                 if target.tier == "base" and attacker_team in {"blue", "red"}:
                     empowered_text = self.text("empowered_minions", team=self.text(attacker_team), lane=self.lane_name(target.lane))
@@ -869,6 +873,8 @@ class CombatMixin:
         gold = int(monster.gold_reward * rule["gold_mult"])
         xp = int(monster.xp_reward * rule["xp_mult"])
         hero.gold += gold
+        self.record_reward(attacker_team, gold, xp)
+        self.match_stats[attacker_team]["monsters_slain"] += 1
         self.gain_xp(hero, xp)
         self.spawn_particles(monster.x, monster.y, monster.color, count=24, speed=150, spread=1.2, radius=3.1, ttl=0.4)
         self.spawn_ring(monster.x, monster.y, monster.color, base_radius=64, ttl=0.34)
@@ -876,6 +882,23 @@ class CombatMixin:
             text = self.text("neutral_slain", name=self.jungle_name(monster.camp_key), gold=gold, xp=xp)
             self.show_message(text)
             self.spawn_banner(text, monster.color, ttl=1.25)
+
+
+    def record_damage_stats(self, target, amount, attacker_team):
+        if target.team == attacker_team:
+            return
+        effective = min(amount, getattr(target, "hp", amount))
+        if attacker_team in {"blue", "red"}:
+            self.match_stats[attacker_team]["damage_dealt"] += max(0, effective)
+        if target.team in {"blue", "red"}:
+            self.match_stats[target.team]["damage_taken"] += max(0, effective)
+
+
+    def record_reward(self, team, gold, xp):
+        if team not in {"blue", "red"}:
+            return
+        self.match_stats[team]["gold_earned"] += max(0, gold)
+        self.match_stats[team]["xp_earned"] += max(0, xp)
 
 
     def hero_for_team(self, team):

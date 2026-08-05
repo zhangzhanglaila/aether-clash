@@ -1,5 +1,6 @@
 import math
 
+from equipment_data import HERO_RECOMMENDED_ITEMS, ITEMS
 from game_data import HEIGHT, WIDTH, Hero, Minion, clamp, dist, norm
 
 
@@ -25,8 +26,13 @@ class AiMixin:
             self.regen_hero(hero, dt)
             return
 
+        self.maybe_enemy_buy_items(hero)
         self.regen_hero(hero, dt)
         hp_ratio = hero.hp / hero.max_hp
+        player_pressure = self.player.alive and dist(hero, self.player) < 300
+        if hero.gold >= 420 and dist(hero, self.red_core) > 260 and not player_pressure:
+            self.start_enemy_recall()
+            return
         if hp_ratio < 0.18 and dist(hero, self.red_core) > 260 and (not self.player.alive or dist(hero, self.player) > 260):
             self.start_enemy_recall()
             return
@@ -103,4 +109,31 @@ class AiMixin:
             return None
         threats.sort(key=lambda item: (item[0], item[1], item[2]))
         return threats[0][3]
+
+
+    def maybe_enemy_buy_items(self, hero):
+        if hero.team != "red" or dist(hero, self.red_core) > 155:
+            return
+        recommended = HERO_RECOMMENDED_ITEMS.get(hero.hero_key, [])
+        for _ in range(3):
+            bought = False
+            for item_key in recommended:
+                item = ITEMS[item_key]
+                if hero.equipment.get(item_key, 0) >= item["max_stacks"]:
+                    continue
+                missing_item = self.missing_item_requirement(hero, item)
+                candidate = missing_item or item_key
+                candidate_item = ITEMS[candidate]
+                if hero.equipment.get(candidate, 0) >= candidate_item["max_stacks"]:
+                    continue
+                cost = candidate_item["cost"] + hero.equipment.get(candidate, 0) * 70
+                if hero.gold < cost:
+                    continue
+                if self.buy_item_for_hero(hero, candidate, self.red_core):
+                    bought = True
+                    if self.hero_visible_to_player(hero):
+                        self.spawn_floating_text(hero.x, hero.y - 72, f"+{self.item_name(candidate)}", candidate_item["color"], ttl=0.85)
+                    break
+            if not bought:
+                break
 

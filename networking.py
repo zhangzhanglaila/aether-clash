@@ -318,6 +318,7 @@ class NetworkMixin:
             "match_time": self.match_time,
             "match_over": self.match_over,
             "winner": self.winner,
+            "match_stats": self.match_stats,
             "message": self.message,
             "message_remaining": max(0, self.message_until - self.now()),
             "recalling": self.recalling,
@@ -371,6 +372,9 @@ class NetworkMixin:
         self.match_time = snapshot.get("match_time", self.match_time)
         self.match_over = snapshot.get("match_over", False)
         self.winner = snapshot.get("winner")
+        stats = snapshot.get("match_stats")
+        if stats:
+            self.match_stats = stats
         self.message = snapshot.get("message", "")
         self.message_until = self.now() + snapshot.get("message_remaining", 0)
         self.recalling = snapshot.get("enemy_recalling", False)

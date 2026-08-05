@@ -104,6 +104,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - 启动后先选择 `中文` 或 `English`。
 - 进入大厅后选择对战模式，再进入英雄选择。
 - 选择英雄后进入加载页，然后开始对局。
+- 对局开始会显示新手引导，可按 `H` 隐藏。
 - 当前是蓝方玩家英雄对战红方 AI 英雄。
 - 地图包含三路兵线、防御塔、双方主水晶、野区营地、远古守卫、河道和草丛。
 - 摧毁敌方基地水晶获胜。
@@ -158,12 +159,13 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - 英雄升级会提升生命、攻击、射程和技能战斗力。
 - 技能等级会提升伤害/治疗并缩短冷却。
 - 敌方英雄会按模式获得经验并升级，等级显示在头顶。
-- 敌方 AI 会根据血量和局势选择进攻、补兵、打野、守塔或回城。
+- 敌方 AI 会根据血量和局势选择进攻、补兵、打野、守塔、回城和购买装备。
 - 商店包含 12 件装备，覆盖攻击、法术、防御、移动和打野类别。
-- 部分装备有前置件和被动效果。
+- 部分装备有前置件和被动效果，商店会显示装备属性和需求。
+- 技能按钮和英雄选择页会显示技能说明，方便理解技能效果。
 - HUD 包含小地图、计时器、比分、经验条、技能按钮和底部功能键。
 - 战绩面板显示双方等级、击杀/死亡、金币、装备等级和技能等级。
-- 结算页显示胜负、时长、等级、击杀/死亡、金币、推塔和技能等级。
+- 结算页显示胜负、时长、等级、击杀/死亡、总经济、推塔、输出、承伤、野怪和技能等级。
 - 普攻、技能命中、升级、摧毁建筑、击杀、连杀和终结都有视觉反馈。
 
 ### 代码结构
@@ -250,6 +252,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - Choose `中文` or `English` after launch.
 - Pick a match mode in the lobby, then choose a hero.
 - After hero selection, the game enters a loading screen and starts the match.
+- A first-match guide appears in game and can be hidden with `H`.
 - The current match is blue player hero versus red AI hero.
 - The map includes three lanes, towers, team cores, jungle camps, an Ancient Guard, river, and brush.
 - Destroy the enemy core to win.
@@ -304,12 +307,13 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - Level-ups increase health, attack, range, and skill combat power.
 - Skill levels increase skill value and reduce cooldowns.
 - Enemy hero gains XP by mode, levels up, and shows level above the hero.
-- Enemy AI can fight, last-hit, jungle, defend, retreat, or recall.
+- Enemy AI can fight, last-hit, jungle, defend, retreat, recall, and buy equipment.
 - Shop includes 12 equipment items across attack, magic, defense, movement, and jungle categories.
-- Some equipment items have requirements and passive effects.
+- Some equipment items have requirements and passive effects, with stat details shown in the shop.
+- Skill buttons and hero selection show skill descriptions.
 - HUD includes minimap, timer, score, XP bar, skill buttons, and bottom utility row.
 - Scoreboard shows level, kills/deaths, gold, equipment levels, and skill levels.
-- Settlement screen shows result, duration, level, kills/deaths, gold, towers destroyed, and skill levels.
+- Settlement screen shows result, duration, level, kills/deaths, gold earned, towers, damage, damage taken, jungle kills, and skill levels.
 - Attacks, skill hits, level-ups, destroyed structures, kills, streaks, and shutdowns have visual feedback.
 
 ### Code Structure
