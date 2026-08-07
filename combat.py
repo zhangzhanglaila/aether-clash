@@ -170,18 +170,34 @@ class CombatMixin:
             return
         unit.next_attack = current + unit.attack_cd
         color = "#8fd3ff" if unit.team == "blue" else "#ff9a91" if unit.team == "red" else "#f7d765"
+        damage = unit.attack_damage
+        slow = 0
+        slow_duration = 0
+        radius = 7 if isinstance(unit, Core) else 6 if isinstance(unit, Tower) else 4
+        if isinstance(unit, Hero) and unit.hero_key == "ranger":
+            unit.passive_stacks += 1
+            if unit.passive_stacks >= 3:
+                unit.passive_stacks = 0
+                damage *= 1.35
+                slow = 0.68
+                slow_duration = 0.75
+                radius = 7
+                self.spawn_ring(unit.x, unit.y, unit.accent, base_radius=38, ttl=0.22)
+                self.spawn_floating_text(unit.x, unit.y - 62, self.hero_passive_name(unit.hero_key), unit.accent, ttl=0.65)
         self.spawn_particles(unit.x, unit.y, color, count=6, speed=70, spread=0.5, radius=2.1, ttl=0.18)
         self.projectiles.append(
             Projectile(
                 unit.x,
                 unit.y,
                 unit.team,
-                unit.attack_damage,
+                damage,
                 330 if isinstance(unit, (Tower, Core)) else 250,
                 target=target,
-                radius=7 if isinstance(unit, Core) else 6 if isinstance(unit, Tower) else 4,
+                radius=radius,
                 ttl=2.2,
                 color=color,
+                slow=slow,
+                slow_duration=slow_duration,
             )
         )
 
@@ -440,6 +456,10 @@ class CombatMixin:
 
 
     def spawn_cast_fx(self, hero, skill_key):
+        if hero.hero_key == "arcanist":
+            shield = 24 + hero.level * 4 + 10 * max(1, hero.skill_levels.get(skill_key, 1))
+            hero.shield = max(hero.shield, shield)
+            self.spawn_floating_text(hero.x, hero.y - 62, self.hero_passive_name(hero.hero_key), hero.accent, ttl=0.65)
         if skill_key == "q":
             self.spawn_particles(hero.x, hero.y, hero.accent, count=8, speed=80, spread=0.7, radius=2.4, ttl=0.22)
             self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=28, ttl=0.18)
@@ -818,6 +838,7 @@ class CombatMixin:
         if isinstance(target, (Tower, Core)):
             amount *= 1.35 if attacker_team == "blue" else 1.15
         amount = self.apply_item_damage_modifiers(target, amount, attacker_team)
+        amount = self.apply_hero_passive_modifiers(target, amount, attacker_team)
         was_alive = target.alive
         if isinstance(target, Hero):
             target.last_attacker_team = attacker_team
@@ -918,6 +939,20 @@ class CombatMixin:
         if isinstance(target, Hero):
             bulwark_level = target.equipment.get("bulwark", 0)
             if bulwark_level:
+                amount *= 0.9
+        return amount
+
+
+    def apply_hero_passive_modifiers(self, target, amount, attacker_team):
+        attacker = self.hero_for_team(attacker_team)
+        if attacker and attacker.hero_key == "shade" and isinstance(target, Hero) and target.team != attacker_team and target.hp / target.max_hp <= 0.45:
+            amount *= 1.14
+        if attacker and attacker.hero_key == "weaver" and target.team != attacker_team and (self.is_stunned(target) or self.now() < target.slowed_until):
+            amount *= 1.12
+        if isinstance(target, Hero):
+            if target.hero_key == "sentinel":
+                amount *= 0.92
+            if target.hero_key == "vanguard" and target.hp / target.max_hp <= 0.4:
                 amount *= 0.9
         return amount
 

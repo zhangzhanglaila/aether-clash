@@ -160,6 +160,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - 河道贯穿地图中心，草丛会影响远距离视野和锁定。
 - 英雄升级会提升生命、攻击、射程和技能战斗力。
 - 技能等级会提升伤害/治疗并缩短冷却。
+- 每个英雄都有原创被动，用于区分打法和成长路线。
 - 敌方英雄会按模式获得经验并升级，等级显示在头顶。
 - 敌方 AI 会根据血量和局势选择进攻、补兵、打野、守塔、回城和购买装备。
 - 商店包含 12 件装备，覆盖攻击、法术、防御、移动和打野类别。
@@ -310,6 +311,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - River and brush affect visibility and target locking.
 - Level-ups increase health, attack, range, and skill combat power.
 - Skill levels increase skill value and reduce cooldowns.
+- Each hero has an original passive that changes playstyle and scaling.
 - Enemy hero gains XP by mode, levels up, and shows level above the hero.
 - Enemy AI can fight, last-hit, jungle, defend, retreat, recall, and buy equipment.
 - Shop includes 12 equipment items across attack, magic, defense, movement, and jungle categories.

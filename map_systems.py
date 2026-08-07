@@ -257,6 +257,7 @@ class MapSystemsMixin:
         hero.stunned_until = 0
         hero.slowed_until = 0
         hero.slow_mult = 1.0
+        hero.passive_stacks = 0
         if hero.team == "blue":
             hero.x, hero.y = 130, 580
         else:

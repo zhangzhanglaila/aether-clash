@@ -344,6 +344,14 @@ L10N = {
             "shade": {"q": "Shadow Cut", "e": "Blink Strike", "r": "Void Execution"},
             "weaver": {"q": "Thread Lance", "e": "Grapple Vault", "r": "Snare Bloom"},
         },
+        "passives": {
+            "vanguard": {"name": "Last Line", "detail": "Below 40% HP, incoming damage is reduced."},
+            "ranger": {"name": "Rhythm Shot", "detail": "Every third basic attack deals bonus damage and slows."},
+            "arcanist": {"name": "Arc Charge", "detail": "Casting a skill grants a small temporary shield."},
+            "sentinel": {"name": "Plated Guard", "detail": "All incoming damage is slightly reduced."},
+            "shade": {"name": "Cull", "detail": "Deals more damage to low-health enemy heroes."},
+            "weaver": {"name": "Thread Mark", "detail": "Deals more damage to stunned or slowed targets."},
+        },
         "skill_details": {
             "vanguard": {
                 "q": "Piercing spear line damage.",
@@ -539,6 +547,14 @@ L10N = {
             "shade": {"q": "影切", "e": "瞬步斩", "r": "虚空处决"},
             "weaver": {"q": "索刃", "e": "钩索跃迁", "r": "星缚绽放"},
         },
+        "passives": {
+            "vanguard": {"name": "背水阵线", "detail": "生命低于 40% 时，受到的伤害降低。"},
+            "ranger": {"name": "节奏射击", "detail": "每第三次普攻造成额外伤害并减速。"},
+            "arcanist": {"name": "奥术充能", "detail": "释放技能后获得少量临时护盾。"},
+            "sentinel": {"name": "重甲守卫", "detail": "受到的所有伤害小幅降低。"},
+            "shade": {"name": "残影收割", "detail": "攻击低血量敌方英雄时伤害提升。"},
+            "weaver": {"name": "星索印记", "detail": "攻击被眩晕或减速的目标时伤害提升。"},
+        },
         "skill_details": {
             "vanguard": {
                 "q": "直线穿透长矛伤害。",
@@ -660,6 +676,7 @@ class Hero(Unit):
     cooldowns: dict = field(default_factory=lambda: {"q": 0, "e": 0, "r": 0})
     skill_levels: dict = field(default_factory=lambda: {"q": 1, "e": 1, "r": 0})
     skill_points: int = 0
+    passive_stacks: int = 0
 
 
 @dataclass

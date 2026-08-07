@@ -151,6 +151,12 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
     def hero_skill_detail(self, hero_key, skill_key):
         return L10N[self.language]["skill_details"][hero_key][skill_key]
 
+    def hero_passive_name(self, hero_key):
+        return L10N[self.language]["passives"][hero_key]["name"]
+
+    def hero_passive_detail(self, hero_key):
+        return L10N[self.language]["passives"][hero_key]["detail"]
+
     def hero_skill_traits(self, hero_key):
         return L10N[self.language]["skill_traits"][hero_key]
 

@@ -251,11 +251,13 @@ class RenderingMixin:
                 anchor="w",
                 font=("Segoe UI", 12, "bold"),
             )
+            passive = f"P {self.hero_passive_name(hovered_hero_key)}: {self.hero_passive_detail(hovered_hero_key)}"
+            c.create_text(206, 632, text=passive, fill=accent, anchor="w", font=("Segoe UI", 9, "bold"), width=690)
             detail = "   ".join(
                 f"{key.upper()} {self.hero_skill(hovered_hero_key, key)}: {self.hero_skill_detail(hovered_hero_key, key)}"
                 for key in ("q", "e", "r")
             )
-            c.create_text(206, 644, text=detail, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=690)
+            c.create_text(206, 654, text=detail, fill="#cfd6cd", anchor="w", font=("Segoe UI", 8), width=690)
         else:
             c.create_rectangle(358, 610, 742, 656, fill="#101416", outline="#394043")
             c.create_text(WIDTH // 2, 633, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
@@ -910,11 +912,13 @@ class RenderingMixin:
             max_level=SKILL_MAX_LEVELS[hovered],
         )
         body = self.text("skill_tooltip_body", detail=self.hero_skill_detail(self.player.hero_key, hovered))
+        passive = f"P {self.hero_passive_name(self.player.hero_key)}: {self.hero_passive_detail(self.player.hero_key)}"
         left = WIDTH - 392
-        top = HEIGHT - 292
-        c.create_rectangle(left, top, left + 344, top + 92, fill="#101416", outline=self.player.accent, width=2)
+        top = HEIGHT - 316
+        c.create_rectangle(left, top, left + 344, top + 116, fill="#101416", outline=self.player.accent, width=2)
         c.create_text(left + 14, top + 20, text=title, fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-        c.create_text(left + 14, top + 54, text=body, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=314)
+        c.create_text(left + 14, top + 52, text=body, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=314)
+        c.create_text(left + 14, top + 92, text=passive, fill=self.player.accent, anchor="w", font=("Segoe UI", 8, "bold"), width=314)
 
     def draw_tutorial(self, c):
         left, top, right, bottom = 214, 88, 592, 244
