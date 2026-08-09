@@ -222,6 +222,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.enemy_hero.name = f"Red {HEROES[enemy_hero_key]['name']}"
         self.apply_starting_level(self.player, rule["start_level"])
         self.player.gold = rule["start_gold"]
+        self.match_stats["blue"]["gold_earned"] = self.player.gold
         self.scale_hero_stats(self.enemy_hero, rule["enemy_stat_mult"])
         self.blue_core = Core(
             74,

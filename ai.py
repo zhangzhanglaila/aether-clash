@@ -30,7 +30,7 @@ class AiMixin:
         self.regen_hero(hero, dt)
         hp_ratio = hero.hp / hero.max_hp
         player_pressure = self.player.alive and dist(hero, self.player) < 300
-        if hero.gold >= 420 and dist(hero, self.red_core) > 260 and not player_pressure:
+        if self.enemy_has_affordable_recommended_item(hero) and dist(hero, self.red_core) > 260 and not player_pressure:
             self.start_enemy_recall()
             return
         if hp_ratio < 0.18 and dist(hero, self.red_core) > 260 and (not self.player.alive or dist(hero, self.player) > 260):
@@ -40,8 +40,7 @@ class AiMixin:
         if target:
             if dist(hero, target) <= hero.attack_range:
                 self.hero_attack(hero, target)
-            if isinstance(target, Hero) and self.now() >= hero.cooldowns["q"]:
-                self.cast_ai_bolt(hero, target)
+            self.cast_enemy_skills(hero, target, ai_state, hp_ratio)
 
         dx, dy = tx - hero.x, ty - hero.y
         stop_distance = 180 if ai_state in {"fight", "jungle"} else 90
@@ -114,26 +113,74 @@ class AiMixin:
     def maybe_enemy_buy_items(self, hero):
         if hero.team != "red" or dist(hero, self.red_core) > 155:
             return
-        recommended = HERO_RECOMMENDED_ITEMS.get(hero.hero_key, [])
         for _ in range(3):
-            bought = False
-            for item_key in recommended:
-                item = ITEMS[item_key]
-                if hero.equipment.get(item_key, 0) >= item["max_stacks"]:
-                    continue
-                missing_item = self.missing_item_requirement(hero, item)
-                candidate = missing_item or item_key
-                candidate_item = ITEMS[candidate]
-                if hero.equipment.get(candidate, 0) >= candidate_item["max_stacks"]:
-                    continue
-                cost = candidate_item["cost"] + hero.equipment.get(candidate, 0) * 70
-                if hero.gold < cost:
-                    continue
-                if self.buy_item_for_hero(hero, candidate, self.red_core):
-                    bought = True
-                    if self.hero_visible_to_player(hero):
-                        self.spawn_floating_text(hero.x, hero.y - 72, f"+{self.item_name(candidate)}", candidate_item["color"], ttl=0.85)
-                    break
-            if not bought:
+            candidate = self.next_affordable_enemy_item(hero)
+            if not candidate:
                 break
+            candidate_item = ITEMS[candidate]
+            if self.buy_item_for_hero(hero, candidate, self.red_core):
+                if self.hero_visible_to_player(hero):
+                    self.spawn_floating_text(hero.x, hero.y - 72, f"+{self.item_name(candidate)}", candidate_item["color"], ttl=0.85)
+            else:
+                break
+
+
+    def enemy_has_affordable_recommended_item(self, hero):
+        return self.next_affordable_enemy_item(hero) is not None
+
+
+    def next_affordable_enemy_item(self, hero):
+        for item_key in HERO_RECOMMENDED_ITEMS.get(hero.hero_key, []):
+            item = ITEMS[item_key]
+            if hero.equipment.get(item_key, 0) >= item["max_stacks"]:
+                continue
+            missing_item = self.missing_item_requirement(hero, item)
+            candidate = missing_item or item_key
+            candidate_item = ITEMS[candidate]
+            if hero.equipment.get(candidate, 0) >= candidate_item["max_stacks"]:
+                continue
+            cost = candidate_item["cost"] + hero.equipment.get(candidate, 0) * 70
+            if hero.gold >= cost:
+                return candidate
+        return None
+
+
+    def cast_enemy_skills(self, hero, target, ai_state, hp_ratio):
+        distance = dist(hero, target)
+        if isinstance(target, Hero):
+            target_ratio = target.hp / target.max_hp
+            if self.skill_available(hero, "r") and distance <= 340 and (target_ratio <= 0.58 or hp_ratio >= 0.68):
+                self.cast_enemy_skill_at(hero, "r", target.x, target.y)
+                return
+            if self.skill_available(hero, "e"):
+                if hero.hero_key in {"sentinel", "arcanist"} and hp_ratio <= 0.72:
+                    self.cast_enemy_skill_at(hero, "e", target.x, target.y)
+                    return
+                if hero.hero_key in {"vanguard", "shade", "weaver"} and 105 <= distance <= 270:
+                    self.cast_enemy_skill_at(hero, "e", target.x, target.y)
+                    return
+                if hero.hero_key == "ranger" and distance <= 170:
+                    away_x = hero.x + (hero.x - target.x)
+                    away_y = hero.y + (hero.y - target.y)
+                    self.cast_enemy_skill_at(hero, "e", away_x, away_y)
+                    return
+            if self.skill_available(hero, "q") and distance <= 390:
+                self.cast_enemy_skill_at(hero, "q", target.x, target.y)
+            return
+        if self.skill_available(hero, "q") and distance <= 310 and ai_state in {"jungle", "lane"}:
+            self.cast_enemy_skill_at(hero, "q", target.x, target.y)
+
+
+    def cast_enemy_skill_at(self, hero, skill_key, x, y):
+        old_mouse = self.mouse_x, self.mouse_y
+        self.mouse_x, self.mouse_y = x, y
+        try:
+            if skill_key == "q":
+                self.cast_q(hero)
+            elif skill_key == "e":
+                self.cast_e(hero)
+            elif skill_key == "r":
+                self.cast_r(hero)
+        finally:
+            self.mouse_x, self.mouse_y = old_mouse
 

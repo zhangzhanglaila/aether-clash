@@ -162,7 +162,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - 技能等级会提升伤害/治疗并缩短冷却。
 - 每个英雄都有原创被动，用于区分打法和成长路线。
 - 敌方英雄会按模式获得经验并升级，等级显示在头顶。
-- 敌方 AI 会根据血量和局势选择进攻、补兵、打野、守塔、回城和购买装备。
+- 敌方 AI 会根据血量和局势选择进攻、补兵、打野、守塔、回城、购买装备和释放英雄技能。
 - 商店包含 12 件装备，覆盖攻击、法术、防御、移动和打野类别。
 - 部分装备有前置件和被动效果，商店会显示装备属性和需求。
 - 技能按钮和英雄选择页会显示技能说明，方便理解技能效果。
@@ -313,7 +313,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 - Skill levels increase skill value and reduce cooldowns.
 - Each hero has an original passive that changes playstyle and scaling.
 - Enemy hero gains XP by mode, levels up, and shows level above the hero.
-- Enemy AI can fight, last-hit, jungle, defend, retreat, recall, and buy equipment.
+- Enemy AI can fight, last-hit, jungle, defend, retreat, recall, buy equipment, and cast hero skills.
 - Shop includes 12 equipment items across attack, magic, defense, movement, and jungle categories.
 - Some equipment items have requirements and passive effects, with stat details shown in the shop.
 - Skill buttons and hero selection show skill descriptions.

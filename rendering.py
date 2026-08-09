@@ -415,14 +415,22 @@ class RenderingMixin:
         for structure in structures:
             target = self.nearest_enemy(structure, structure.attack_range, include_cores=False)
             if not target or isinstance(target, Hero) and not self.hero_visible_to_player(target):
-                continue
+                target = None
             is_player_target = target is self.player
             is_visible_enemy_target = target is self.enemy_hero and self.hero_visible_to_player(self.enemy_hero)
-            if not is_player_target and not is_visible_enemy_target:
+            player_in_enemy_range = (
+                self.player.alive
+                and structure.team != self.player.team
+                and math.hypot(structure.x - self.player.x, structure.y - self.player.y) <= structure.attack_range
+            )
+            if not player_in_enemy_range and not is_player_target and not is_visible_enemy_target:
                 continue
             color = "#ffb0aa" if structure.team == "red" else "#8fd3ff"
             r = structure.attack_range
-            c.create_oval(structure.x - r, structure.y - r, structure.x + r, structure.y + r, outline=color, width=1, dash=(12, 8))
+            width = 2 if is_player_target or is_visible_enemy_target else 1
+            c.create_oval(structure.x - r, structure.y - r, structure.x + r, structure.y + r, outline=color, width=width, dash=(12, 8))
+            if not target:
+                continue
             c.create_line(structure.x, structure.y, target.x, target.y, fill=color, width=2, dash=(8, 5))
             lock_r = target.radius + 22
             c.create_oval(target.x - lock_r, target.y - lock_r, target.x + lock_r, target.y + lock_r, outline=color, width=2)
