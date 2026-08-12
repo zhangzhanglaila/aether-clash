@@ -30,6 +30,7 @@ class EconomyMixin:
 
         self.player.gold -= cost
         self.player.equipment[item_key] += 1
+        self.add_match_stat(self.player.team, "items_spent", cost)
         if "attack_damage" in item:
             self.player.attack_damage += item["attack_damage"]
         if "skill_power" in item:

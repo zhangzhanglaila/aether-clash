@@ -135,9 +135,40 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
 
     def blank_match_stats(self):
         return {
-            "blue": {"damage_dealt": 0, "damage_taken": 0, "gold_earned": 0, "xp_earned": 0, "towers_destroyed": 0, "monsters_slain": 0},
-            "red": {"damage_dealt": 0, "damage_taken": 0, "gold_earned": 0, "xp_earned": 0, "towers_destroyed": 0, "monsters_slain": 0},
+            "blue": {
+                "damage_dealt": 0,
+                "hero_damage": 0,
+                "structure_damage": 0,
+                "damage_taken": 0,
+                "healing": 0,
+                "shielding": 0,
+                "gold_earned": 0,
+                "xp_earned": 0,
+                "towers_destroyed": 0,
+                "monsters_slain": 0,
+                "minions_last_hit": 0,
+                "items_spent": 0,
+            },
+            "red": {
+                "damage_dealt": 0,
+                "hero_damage": 0,
+                "structure_damage": 0,
+                "damage_taken": 0,
+                "healing": 0,
+                "shielding": 0,
+                "gold_earned": 0,
+                "xp_earned": 0,
+                "towers_destroyed": 0,
+                "monsters_slain": 0,
+                "minions_last_hit": 0,
+                "items_spent": 0,
+            },
         }
+
+    def add_match_stat(self, team, key, amount):
+        if team not in {"blue", "red"} or key not in self.match_stats[team]:
+            return
+        self.match_stats[team][key] += max(0, amount)
 
     def hero_name(self, hero_key):
         return L10N[self.language]["hero_names"][hero_key]

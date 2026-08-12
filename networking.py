@@ -272,8 +272,9 @@ class NetworkMixin:
         if self.now() < self.enemy_summoner_cooldowns["g"] or not self.enemy_hero.alive:
             return
         self.enemy_summoner_cooldowns["g"] = self.now() + self.summoner_cd_durations["g"]
-        amount = self.enemy_hero.max_hp * 0.32
+        amount = min(self.enemy_hero.max_hp - self.enemy_hero.hp, self.enemy_hero.max_hp * 0.32)
         self.enemy_hero.hp = min(self.enemy_hero.max_hp, self.enemy_hero.hp + amount)
+        self.add_match_stat(self.enemy_hero.team, "healing", amount)
         self.spawn_floating_text(self.enemy_hero.x, self.enemy_hero.y - 24, f"+{int(amount)}", "#48d06b", ttl=0.75)
         self.spawn_ring(self.enemy_hero.x, self.enemy_hero.y, "#48d06b", base_radius=76, ttl=0.34)
 
@@ -374,7 +375,10 @@ class NetworkMixin:
         self.winner = snapshot.get("winner")
         stats = snapshot.get("match_stats")
         if stats:
-            self.match_stats = stats
+            merged_stats = self.blank_match_stats()
+            for team in ("blue", "red"):
+                merged_stats[team].update(stats.get(team, {}))
+            self.match_stats = merged_stats
         self.message = snapshot.get("message", "")
         self.message_until = self.now() + snapshot.get("message_remaining", 0)
         self.recalling = snapshot.get("enemy_recalling", False)
@@ -401,6 +405,7 @@ class NetworkMixin:
             return False
         hero.gold -= cost
         hero.equipment[item_key] += 1
+        self.add_match_stat(hero.team, "items_spent", cost)
         if "attack_damage" in item:
             hero.attack_damage += item["attack_damage"]
         if "skill_power" in item:

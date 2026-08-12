@@ -68,7 +68,7 @@ class AiMixin:
         if low_minion:
             return "lane", low_minion, low_minion.x, low_minion.y
 
-        jungle_target = self.nearest_neutral(hero, 260)
+        jungle_target = self.priority_jungle_target(hero)
         if jungle_target and hp_ratio > 0.55:
             return "jungle", jungle_target, jungle_target.x, jungle_target.y
 
@@ -76,6 +76,20 @@ class AiMixin:
         if lane_target:
             return "lane", lane_target, lane_target.x, lane_target.y
         return "lane", None, 560, 350
+
+
+    def priority_jungle_target(self, hero):
+        ancient = next(
+            (
+                monster
+                for monster in self.neutral_monsters
+                if monster.camp_key == "ancient_guard" and monster.alive
+            ),
+            None,
+        )
+        if ancient and hero.level >= 4 and dist(hero, ancient) <= 520:
+            return ancient
+        return self.nearest_neutral(hero, 260)
 
 
     def low_health_enemy_minion(self, hero):

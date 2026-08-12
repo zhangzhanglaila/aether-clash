@@ -455,10 +455,16 @@ class CombatMixin:
         self.float_texts.append(FloatingText(x, y, text, color, ttl, ttl))
 
 
+    def grant_shield(self, hero, amount):
+        before = hero.shield
+        hero.shield = max(hero.shield, amount)
+        self.add_match_stat(hero.team, "shielding", hero.shield - before)
+
+
     def spawn_cast_fx(self, hero, skill_key):
         if hero.hero_key == "arcanist":
             shield = 24 + hero.level * 4 + 10 * max(1, hero.skill_levels.get(skill_key, 1))
-            hero.shield = max(hero.shield, shield)
+            self.grant_shield(hero, shield)
             self.spawn_floating_text(hero.x, hero.y - 62, self.hero_passive_name(hero.hero_key), hero.accent, ttl=0.65)
         if skill_key == "q":
             self.spawn_particles(hero.x, hero.y, hero.accent, count=8, speed=80, spread=0.7, radius=2.4, ttl=0.22)
@@ -604,8 +610,10 @@ class CombatMixin:
         vx, vy = self.aim_vector(hero)
         self.spawn_cast_fx(hero, "e")
         if hero.hero_key == "sentinel":
-            hero.hp = min(hero.max_hp, hero.hp + 140 * self.skill_level_multiplier(hero, "e"))
-            hero.shield = max(hero.shield, 130 * self.skill_level_multiplier(hero, "e"))
+            healed = min(hero.max_hp - hero.hp, 140 * self.skill_level_multiplier(hero, "e"))
+            hero.hp += healed
+            self.add_match_stat(hero.team, "healing", healed)
+            self.grant_shield(hero, 130 * self.skill_level_multiplier(hero, "e"))
             hero.next_attack = 0
             self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=94, ttl=0.36)
             self.spawn_particles(hero.x, hero.y, hero.accent, count=18, speed=90, spread=0.9, radius=3.0, ttl=0.36)
@@ -613,8 +621,10 @@ class CombatMixin:
 
         if hero.hero_key == "arcanist":
             self.spawn_beam(hero.x, hero.y, hero.x, hero.y, hero.accent, width=8, ttl=0.2)
-            hero.hp = min(hero.max_hp, hero.hp + 95 * self.skill_level_multiplier(hero, "e"))
-            hero.shield = max(hero.shield, 80 * self.skill_level_multiplier(hero, "e"))
+            healed = min(hero.max_hp - hero.hp, 95 * self.skill_level_multiplier(hero, "e"))
+            hero.hp += healed
+            self.add_match_stat(hero.team, "healing", healed)
+            self.grant_shield(hero, 80 * self.skill_level_multiplier(hero, "e"))
             self.damage_area(hero.team, hero.x, hero.y, 82, self.skill_damage(hero, 54, skill_key="e"))
             self.control_area(hero.team, hero.x, hero.y, 82, slow=0.55, duration=1.2)
             self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
@@ -866,9 +876,10 @@ class CombatMixin:
                 target.respawn_at = self.now() + target.respawn_delay
             if attacker_team == "blue" and target.team == "red":
                 self.reward_player(target)
-            if isinstance(target, Tower):
-                if attacker_team in {"blue", "red"}:
-                    self.match_stats[attacker_team]["towers_destroyed"] += 1
+            if isinstance(target, Minion) and attacker_team in {"blue", "red"}:
+                self.add_match_stat(attacker_team, "minions_last_hit", 1)
+            if isinstance(target, Tower) and attacker_team in {"blue", "red"}:
+                self.match_stats[attacker_team]["towers_destroyed"] += 1
                 text = self.text("destroyed", name=target.name)
                 if target.tier == "base" and attacker_team in {"blue", "red"}:
                     empowered_text = self.text("empowered_minions", team=self.text(attacker_team), lane=self.lane_name(target.lane))
@@ -910,9 +921,13 @@ class CombatMixin:
             return
         effective = min(amount, getattr(target, "hp", amount))
         if attacker_team in {"blue", "red"}:
-            self.match_stats[attacker_team]["damage_dealt"] += max(0, effective)
+            self.add_match_stat(attacker_team, "damage_dealt", effective)
+            if isinstance(target, Hero):
+                self.add_match_stat(attacker_team, "hero_damage", effective)
+            elif isinstance(target, (Tower, Core)):
+                self.add_match_stat(attacker_team, "structure_damage", effective)
         if target.team in {"blue", "red"}:
-            self.match_stats[target.team]["damage_taken"] += max(0, effective)
+            self.add_match_stat(target.team, "damage_taken", effective)
 
 
     def record_reward(self, team, gold, xp):

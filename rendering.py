@@ -242,22 +242,20 @@ class RenderingMixin:
 
         if hovered_hero_key:
             accent = HEROES[hovered_hero_key]["accent"]
-            c.create_rectangle(182, 592, 918, 672, fill="#101416", outline=accent, width=2)
+            c.create_rectangle(182, 568, 918, 692, fill="#101416", outline=accent, width=2)
             c.create_text(
                 206,
-                612,
+                588,
                 text=f"{self.hero_name(hovered_hero_key)} / {self.hero_role(hovered_hero_key)}",
                 fill="#f5f1d7",
                 anchor="w",
                 font=("Segoe UI", 12, "bold"),
             )
             passive = f"P {self.hero_passive_name(hovered_hero_key)}: {self.hero_passive_detail(hovered_hero_key)}"
-            c.create_text(206, 632, text=passive, fill=accent, anchor="w", font=("Segoe UI", 9, "bold"), width=690)
-            detail = "   ".join(
-                f"{key.upper()} {self.hero_skill(hovered_hero_key, key)}: {self.hero_skill_detail(hovered_hero_key, key)}"
-                for key in ("q", "e", "r")
-            )
-            c.create_text(206, 654, text=detail, fill="#cfd6cd", anchor="w", font=("Segoe UI", 8), width=690)
+            c.create_text(206, 610, text=passive, fill=accent, anchor="w", font=("Segoe UI", 8, "bold"), width=690)
+            for index, key in enumerate(("q", "e", "r")):
+                detail = f"{key.upper()} {self.hero_skill(hovered_hero_key, key)}: {self.hero_skill_detail(hovered_hero_key, key)}"
+                c.create_text(206, 634 + index * 18, text=detail, fill="#cfd6cd", anchor="w", font=("Segoe UI", 8), width=690)
         else:
             c.create_rectangle(358, 610, 742, 656, fill="#101416", outline="#394043")
             c.create_text(WIDTH // 2, 633, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
@@ -846,18 +844,35 @@ class RenderingMixin:
         if hero.team == "red":
             name = self.text("enemy_prefix", name=name)
         c.create_text(left + 18, top + 24, text=name, fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
-        lines = [
+        stats = self.match_stats[hero.team]
+        left_lines = [
             f"{self.text('level')} {hero.level}",
             f"{self.text('kills')} {hero.kills} / {self.text('deaths')} {hero.deaths}",
-            f"{self.text('gold_earned')} {int(self.match_stats[hero.team]['gold_earned'])}",
-            f"{self.text('destroyed_towers')} {enemy_towers_destroyed}",
-            f"{self.text('damage_dealt')} {int(self.match_stats[hero.team]['damage_dealt'])}",
-            f"{self.text('damage_taken')} {int(self.match_stats[hero.team]['damage_taken'])}",
-            f"{self.text('monsters_slain')} {int(self.match_stats[hero.team]['monsters_slain'])}",
-            " / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r")),
+            f"{self.text('gold_earned')} {int(stats['gold_earned'])}",
+            f"{self.text('items_spent')} {int(stats['items_spent'])}",
+            f"{self.text('minions_last_hit')} {int(stats['minions_last_hit'])}",
+            f"{self.text('monsters_slain')} {int(stats['monsters_slain'])}",
         ]
-        for index, line in enumerate(lines):
-            c.create_text(left + 18, top + 52 + index * 18, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 10))
+        right_lines = [
+            f"{self.text('destroyed_towers')} {enemy_towers_destroyed}",
+            f"{self.text('hero_damage')} {int(stats['hero_damage'])}",
+            f"{self.text('structure_damage')} {int(stats['structure_damage'])}",
+            f"{self.text('damage_taken')} {int(stats['damage_taken'])}",
+            f"{self.text('healing')} {int(stats['healing'])}",
+            f"{self.text('shielding')} {int(stats['shielding'])}",
+        ]
+        for index, line in enumerate(left_lines):
+            c.create_text(left + 18, top + 52 + index * 22, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9))
+        for index, line in enumerate(right_lines):
+            c.create_text(left + 124, top + 52 + index * 22, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9))
+        c.create_text(
+            left + 18,
+            top + 188,
+            text=" / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r")),
+            fill="#f7d765",
+            anchor="w",
+            font=("Segoe UI", 9, "bold"),
+        )
 
     def draw_settlement_button(self, c, action, x, y, width, height, color):
         self.settlement_buttons.append((action, x, y, x + width, y + height))

@@ -104,8 +104,9 @@ class PlayerActionsMixin:
         if self.state != "playing" or not self.player.alive or not self.summoner_ready("g"):
             return
         self.summoner_cooldowns["g"] = self.now() + self.summoner_cd_durations["g"]
-        amount = self.player.max_hp * 0.32
+        amount = min(self.player.max_hp - self.player.hp, self.player.max_hp * 0.32)
         self.player.hp = min(self.player.max_hp, self.player.hp + amount)
+        self.add_match_stat(self.player.team, "healing", amount)
         self.spawn_particles(self.player.x, self.player.y, "#48d06b", count=22, speed=135, spread=1.05, radius=3.0, ttl=0.42)
         self.spawn_ring(self.player.x, self.player.y, "#48d06b", base_radius=76, ttl=0.34)
         self.spawn_floating_text(self.player.x, self.player.y - 24, f"+{int(amount)}", "#48d06b", ttl=0.75)
