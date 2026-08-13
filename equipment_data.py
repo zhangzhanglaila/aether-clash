@@ -21,4 +21,8 @@ HERO_RECOMMENDED_ITEMS = {
     "sentinel": ["guard", "bulwark", "revive_plate", "hunter_charm"],
     "shade": ["piercing_spear", "swift_boots", "blade", "hunter_charm"],
     "weaver": ["swift_boots", "blade", "piercing_spear", "hunter_charm"],
+    "warden": ["guard", "arcane_core", "frost_orb", "bulwark"],
+    "reaver": ["blade", "guard", "piercing_spear", "revive_plate"],
+    "geomancer": ["arcane_core", "storm_staff", "frost_orb", "boots"],
+    "tempest": ["longbow", "swift_boots", "blade", "piercing_spear"],
 }

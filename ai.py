@@ -167,6 +167,18 @@ class AiMixin:
                 self.cast_enemy_skill_at(hero, "r", target.x, target.y)
                 return
             if self.skill_available(hero, "e"):
+                if hero.hero_key == "warden" and hp_ratio <= 0.74:
+                    self.cast_enemy_skill_at(hero, "e", hero.x + 24, hero.y + 18)
+                    return
+                if hero.hero_key == "reaver" and 80 <= distance <= 250:
+                    self.cast_enemy_skill_at(hero, "e", target.x, target.y)
+                    return
+                if hero.hero_key == "geomancer" and distance <= 260:
+                    self.cast_enemy_skill_at(hero, "e", hero.x, hero.y)
+                    return
+                if hero.hero_key == "tempest" and distance <= 240:
+                    self.cast_enemy_skill_at(hero, "e", hero.x + (hero.x - target.x), hero.y + (hero.y - target.y))
+                    return
                 if hero.hero_key in {"sentinel", "arcanist"} and hp_ratio <= 0.72:
                     self.cast_enemy_skill_at(hero, "e", target.x, target.y)
                     return
@@ -178,10 +190,25 @@ class AiMixin:
                     away_y = hero.y + (hero.y - target.y)
                     self.cast_enemy_skill_at(hero, "e", away_x, away_y)
                     return
+                if hero.hero_key == "reaver" and hp_ratio <= 0.55:
+                    self.cast_enemy_skill_at(hero, "e", target.x, target.y)
+                    return
             if self.skill_available(hero, "q") and distance <= 390:
+                if hero.hero_key == "tempest" and distance <= 420:
+                    self.cast_enemy_skill_at(hero, "q", target.x, target.y)
+                    return
+                if hero.hero_key == "warden" and distance <= 360:
+                    self.cast_enemy_skill_at(hero, "q", target.x, target.y)
+                    return
+                if hero.hero_key == "geomancer" and distance <= 360:
+                    self.cast_enemy_skill_at(hero, "q", target.x, target.y)
+                    return
                 self.cast_enemy_skill_at(hero, "q", target.x, target.y)
             return
         if self.skill_available(hero, "q") and distance <= 310 and ai_state in {"jungle", "lane"}:
+            if hero.hero_key == "geomancer" or hero.hero_key == "tempest" or hero.hero_key == "warden":
+                self.cast_enemy_skill_at(hero, "q", target.x, target.y)
+                return
             self.cast_enemy_skill_at(hero, "q", target.x, target.y)
 
 

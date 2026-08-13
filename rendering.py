@@ -204,11 +204,11 @@ class RenderingMixin:
 
         self.hero_cards = []
         hovered_hero_key = None
-        card_w = 300
-        card_h = 206
-        gap_x = 28
-        gap_y = 24
-        columns = 3
+        card_w = 198
+        card_h = 214
+        gap_x = 16
+        gap_y = 18
+        columns = 5
         start_x = (WIDTH - card_w * columns - gap_x * (columns - 1)) // 2
         start_y = 122
         for index, (hero_key, config) in enumerate(HEROES.items()):
@@ -225,20 +225,20 @@ class RenderingMixin:
             outline = config["accent"] if active else "#394043"
             c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=outline, width=3)
             c.create_rectangle(left, top, right, top + 52, fill="#161c1f", outline="")
-            c.create_text(left + 20, top + 19, text=f"{index + 1}. {self.hero_name(hero_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
-            c.create_text(left + 20, top + 40, text=self.hero_role(hero_key), fill=config["accent"], anchor="w", font=("Segoe UI", 10, "bold"))
-            self.draw_hero_icon(c, left + 244, top + 86, config)
+            c.create_text(left + 16, top + 19, text=f"{index + 1}. {self.hero_name(hero_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 12, "bold"), width=150)
+            c.create_text(left + 16, top + 40, text=self.hero_role(hero_key), fill=config["accent"], anchor="w", font=("Segoe UI", 9, "bold"))
+            self.draw_hero_icon(c, left + 161, top + 88, config)
 
             stat_y = top + 76
-            self.draw_stat(c, left + 18, stat_y, "HP", config["hp"], 760, "#48d06b")
-            self.draw_stat(c, left + 18, stat_y + 28, "SPD", config["speed"], 250, "#76b7ff")
-            self.draw_stat(c, left + 18, stat_y + 56, "ATK", config["attack_damage"], 45, "#f7d765")
-            c.create_text(left + 18, top + 158, text=f"Q {self.hero_skill(hero_key, 'q')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9, "bold"))
-            c.create_text(left + 18, top + 178, text=f"E {self.hero_skill(hero_key, 'e')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9, "bold"))
-            c.create_text(left + 156, top + 178, text=f"R {self.hero_skill(hero_key, 'r')}", fill="#f5d28a", anchor="w", font=("Segoe UI", 9, "bold"))
+            self.draw_stat(c, left + 16, stat_y, "HP", config["hp"], 760, "#48d06b")
+            self.draw_stat(c, left + 16, stat_y + 26, "SPD", config["speed"], 250, "#76b7ff")
+            self.draw_stat(c, left + 16, stat_y + 52, "ATK", config["attack_damage"], 45, "#f7d765")
+            c.create_text(left + 16, top + 154, text=f"Q {self.hero_skill(hero_key, 'q')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 8, "bold"), width=164)
+            c.create_text(left + 16, top + 172, text=f"E {self.hero_skill(hero_key, 'e')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 8, "bold"), width=164)
+            c.create_text(left + 16, top + 190, text=f"R {self.hero_skill(hero_key, 'r')}", fill="#f5d28a", anchor="w", font=("Segoe UI", 8, "bold"), width=164)
             trait = self.hero_skill_traits(hero_key)
-            trait_size = 8 if len(trait) > 28 else 9
-            c.create_text(left + 18, top + 198, text=trait, fill=config["accent"], anchor="w", font=("Segoe UI", trait_size, "bold"))
+            trait_size = 8 if len(trait) > 24 else 9
+            c.create_text(left + 16, top + 208, text=trait, fill=config["accent"], anchor="w", font=("Segoe UI", trait_size, "bold"), width=168)
 
         if hovered_hero_key:
             accent = HEROES[hovered_hero_key]["accent"]

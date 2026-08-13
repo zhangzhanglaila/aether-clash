@@ -184,6 +184,13 @@ class CombatMixin:
                 radius = 7
                 self.spawn_ring(unit.x, unit.y, unit.accent, base_radius=38, ttl=0.22)
                 self.spawn_floating_text(unit.x, unit.y - 62, self.hero_passive_name(unit.hero_key), unit.accent, ttl=0.65)
+        if isinstance(unit, Hero) and unit.hero_key == "tempest" and unit.passive_stacks > 0:
+            unit.passive_stacks -= 1
+            unit.next_attack = current + unit.attack_cd * 0.52
+            damage *= 1.22
+            radius = 7
+            self.spawn_ring(unit.x, unit.y, unit.accent, base_radius=34, ttl=0.2)
+            self.spawn_floating_text(unit.x, unit.y - 62, self.hero_passive_name(unit.hero_key), unit.accent, ttl=0.62)
         self.spawn_particles(unit.x, unit.y, color, count=6, speed=70, spread=0.5, radius=2.1, ttl=0.18)
         self.projectiles.append(
             Projectile(
@@ -466,6 +473,8 @@ class CombatMixin:
             shield = 24 + hero.level * 4 + 10 * max(1, hero.skill_levels.get(skill_key, 1))
             self.grant_shield(hero, shield)
             self.spawn_floating_text(hero.x, hero.y - 62, self.hero_passive_name(hero.hero_key), hero.accent, ttl=0.65)
+        if hero.hero_key == "tempest":
+            hero.passive_stacks = min(2, hero.passive_stacks + 1)
         if skill_key == "q":
             self.spawn_particles(hero.x, hero.y, hero.accent, count=8, speed=80, spread=0.7, radius=2.4, ttl=0.22)
             self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=28, ttl=0.18)
@@ -550,6 +559,94 @@ class CombatMixin:
                     slow_duration=0.9,
                 )
             )
+            return
+
+        if hero.hero_key == "warden":
+            angle = math.atan2(vy, vx)
+            self.spawn_beam(hero.x, hero.y, hero.x + math.cos(angle) * 150, hero.y + math.sin(angle) * 150, hero.accent, width=5, ttl=0.16)
+            self.projectiles.append(
+                Projectile(
+                    hero.x,
+                    hero.y,
+                    hero.team,
+                    self.skill_damage(hero, 76, skill_key="q"),
+                    470,
+                    vx=vx,
+                    vy=vy,
+                    radius=9,
+                    pierce=True,
+                    ttl=0.8,
+                    color=hero.accent,
+                    slow=0.68,
+                    slow_duration=0.85,
+                )
+            )
+            return
+
+        if hero.hero_key == "reaver":
+            self.spawn_beam(hero.x, hero.y, hero.x + vx * 150, hero.y + vy * 150, hero.accent, width=6, ttl=0.16)
+            self.projectiles.append(
+                Projectile(
+                    hero.x,
+                    hero.y,
+                    hero.team,
+                    self.skill_damage(hero, 98, skill_key="q"),
+                    420,
+                    vx=vx,
+                    vy=vy,
+                    radius=10,
+                    pierce=False,
+                    ttl=0.76,
+                    color=hero.accent,
+                )
+            )
+            return
+
+        if hero.hero_key == "geomancer":
+            for offset in (-0.18, 0, 0.18):
+                ax = math.cos(math.atan2(vy, vx) + offset)
+                ay = math.sin(math.atan2(vy, vx) + offset)
+                self.spawn_beam(hero.x, hero.y, hero.x + ax * 120, hero.y + ay * 120, hero.accent, width=3, ttl=0.16)
+                self.projectiles.append(
+                    Projectile(
+                        hero.x,
+                        hero.y,
+                        hero.team,
+                        self.skill_damage(hero, 42, skill_key="q"),
+                        380,
+                        vx=ax,
+                        vy=ay,
+                        radius=8,
+                        pierce=True,
+                        ttl=0.86,
+                        color=hero.accent,
+                    )
+                )
+            return
+
+        if hero.hero_key == "tempest":
+            angle = math.atan2(vy, vx)
+            for offset in (-0.08, 0, 0.08):
+                ax = math.cos(angle + offset)
+                ay = math.sin(angle + offset)
+                self.spawn_beam(hero.x, hero.y, hero.x + ax * 155, hero.y + ay * 155, hero.accent, width=2, ttl=0.12)
+                self.projectiles.append(
+                    Projectile(
+                        hero.x,
+                        hero.y,
+                        hero.team,
+                        self.skill_damage(hero, 54, skill_key="q"),
+                        560,
+                        vx=ax,
+                        vy=ay,
+                        radius=7,
+                        pierce=True,
+                        ttl=0.74,
+                        color=hero.accent,
+                        slow=0.7,
+                        slow_duration=0.65,
+                    )
+                )
             return
 
         if hero.hero_key == "ranger":
@@ -658,6 +755,53 @@ class CombatMixin:
             hero.next_attack = 0
             return
 
+        if hero.hero_key == "warden":
+            distance = 142
+            hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
+            hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
+            heal_amount = min(hero.max_hp - hero.hp, 72 * self.skill_level_multiplier(hero, "e"))
+            if hero.hp / hero.max_hp <= 0.45:
+                heal_amount *= 1.35
+            hero.hp += heal_amount
+            self.add_match_stat(hero.team, "healing", heal_amount)
+            shield_amount = 66 * self.skill_level_multiplier(hero, "e")
+            if hero.hp / hero.max_hp <= 0.45:
+                shield_amount *= 1.28
+            self.grant_shield(hero, shield_amount)
+            self.spawn_beam(old_x, old_y, hero.x, hero.y, hero.accent, width=5, ttl=0.2)
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=78, ttl=0.3)
+            self.spawn_particles(hero.x, hero.y, hero.accent, count=18, speed=100, spread=1.0, radius=2.8, ttl=0.3)
+            return
+
+        if hero.hero_key == "reaver":
+            distance = 176
+            hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
+            hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
+            self.spawn_beam(old_x, old_y, hero.x, hero.y, hero.accent, width=6, ttl=0.18)
+            self.damage_area(hero.team, hero.x, hero.y, 58, self.skill_damage(hero, 84, skill_key="e"))
+            self.control_area(hero.team, hero.x, hero.y, 58, slow=0.55, duration=0.95)
+            self.spawn_hit_fx(hero.x, hero.y, hero.accent, big=True)
+            return
+
+        if hero.hero_key == "geomancer":
+            self.spawn_beam(hero.x, hero.y, hero.x, hero.y, hero.accent, width=8, ttl=0.18)
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=90, ttl=0.34)
+            self.spawn_particles(hero.x, hero.y, hero.accent, count=20, speed=120, spread=1.0, radius=2.9, ttl=0.34)
+            self.damage_area(hero.team, hero.x, hero.y, 78, self.skill_damage(hero, 60, skill_key="e"))
+            self.control_area(hero.team, hero.x, hero.y, 78, stun=0.3, slow=0.52, duration=1.0)
+            self.grant_shield(hero, 70 * self.skill_level_multiplier(hero, "e"))
+            return
+
+        if hero.hero_key == "tempest":
+            distance = 178
+            hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
+            hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
+            hero.next_attack = 0
+            self.spawn_beam(old_x, old_y, hero.x, hero.y, hero.accent, width=5, ttl=0.16)
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=58, ttl=0.24)
+            self.spawn_hit_fx(hero.x, hero.y, hero.accent)
+            return
+
         distance = 168 if hero.hero_key == "ranger" else 120
         hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
         hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
@@ -756,6 +900,67 @@ class CombatMixin:
             self.damage_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 176, 1.45, skill_key="r"), include_cores=True)
             self.control_area(hero.team, self.mouse_x, self.mouse_y, 120, stun=0.5, slow=0.5, duration=1.4)
             self.dot_area(hero.team, self.mouse_x, self.mouse_y, 120, self.skill_damage(hero, 28, 0.8, skill_key="r"), 2.1, color=hero.accent)
+            return
+
+        if hero.hero_key == "warden":
+            self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=138, ttl=0.5)
+            self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=26, speed=175, spread=1.2, radius=3.0, ttl=0.38)
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 118, self.skill_damage(hero, 128, 1.3, skill_key="r"), include_cores=True)
+            allies = [unit for unit in [self.player, self.enemy_hero] if unit.alive and unit.team == hero.team]
+            for ally in allies:
+                if dist_xy(self.mouse_x, self.mouse_y, ally.x, ally.y) <= 150:
+                    heal_amount = min(ally.max_hp - ally.hp, 82 * self.skill_level_multiplier(hero, "r"))
+                    ally.hp += heal_amount
+                    self.add_match_stat(hero.team, "healing", heal_amount)
+                    self.grant_shield(ally, 42 * self.skill_level_multiplier(hero, "r"))
+            return
+
+        if hero.hero_key == "reaver":
+            self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=8, ttl=0.2)
+            self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=104, ttl=0.44)
+            self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=28, speed=200, spread=1.3, radius=3.1, ttl=0.38)
+            dealt = self.skill_damage(hero, 160, 1.35, skill_key="r")
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 98, dealt, include_cores=False)
+            self.control_area(hero.team, self.mouse_x, self.mouse_y, 98, slow=0.45, duration=1.1)
+            heal_amount = min(hero.max_hp - hero.hp, dealt * 0.22)
+            hero.hp += heal_amount
+            self.add_match_stat(hero.team, "healing", heal_amount)
+            return
+
+        if hero.hero_key == "geomancer":
+            self.spawn_ring(self.mouse_x, self.mouse_y, hero.accent, base_radius=150, ttl=0.58)
+            self.spawn_particles(self.mouse_x, self.mouse_y, hero.accent, count=32, speed=165, spread=1.25, radius=3.2, ttl=0.46)
+            self.damage_area(hero.team, self.mouse_x, self.mouse_y, 132, self.skill_damage(hero, 152, 1.42, skill_key="r"), include_cores=True)
+            self.control_area(hero.team, self.mouse_x, self.mouse_y, 132, stun=0.6, slow=0.6, duration=1.35)
+            self.dot_area(hero.team, self.mouse_x, self.mouse_y, 132, self.skill_damage(hero, 24, 0.78, skill_key="r"), 1.9, color=hero.accent)
+            self.grant_shield(hero, 96 * self.skill_level_multiplier(hero, "r"))
+            return
+
+        if hero.hero_key == "tempest":
+            vx, vy = self.aim_vector(hero)
+            angle = math.atan2(vy, vx)
+            for offset in (-0.42, -0.24, -0.08, 0.08, 0.24, 0.42):
+                ax = math.cos(angle + offset)
+                ay = math.sin(angle + offset)
+                self.spawn_beam(hero.x, hero.y, hero.x + ax * 120, hero.y + ay * 120, hero.accent, width=2, ttl=0.12)
+                self.projectiles.append(
+                    Projectile(
+                        hero.x,
+                        hero.y,
+                        hero.team,
+                        self.skill_damage(hero, 40, 1.08, skill_key="r"),
+                        560,
+                        vx=ax,
+                        vy=ay,
+                        radius=7,
+                        pierce=True,
+                        ttl=1.0,
+                        color=hero.accent,
+                        slow=0.76,
+                        slow_duration=0.65,
+                    )
+                )
+            self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=92, ttl=0.3)
             return
 
         self.spawn_beam(hero.x, hero.y, self.mouse_x, self.mouse_y, hero.accent, width=6, ttl=0.18)
