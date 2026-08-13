@@ -57,7 +57,7 @@ class InputMixin:
         if self.state == "select":
             if key.isdigit():
                 hero_keys = list(HEROES.keys())
-                index = int(key) - 1
+                index = 9 if key == "0" else int(key) - 1
                 if 0 <= index < len(hero_keys):
                     self.choose_hero(hero_keys[index])
             elif key == "escape":

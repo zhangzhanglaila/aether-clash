@@ -759,9 +759,10 @@ class CombatMixin:
             distance = 142
             hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
             hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
-            heal_amount = min(hero.max_hp - hero.hp, 72 * self.skill_level_multiplier(hero, "e"))
+            raw_heal = 72 * self.skill_level_multiplier(hero, "e")
             if hero.hp / hero.max_hp <= 0.45:
-                heal_amount *= 1.35
+                raw_heal *= 1.35
+            heal_amount = min(hero.max_hp - hero.hp, raw_heal)
             hero.hp += heal_amount
             self.add_match_stat(hero.team, "healing", heal_amount)
             shield_amount = 66 * self.skill_level_multiplier(hero, "e")
@@ -1169,11 +1170,22 @@ class CombatMixin:
             amount *= 1.14
         if attacker and attacker.hero_key == "weaver" and target.team != attacker_team and (self.is_stunned(target) or self.now() < target.slowed_until):
             amount *= 1.12
+        if attacker and attacker.hero_key == "reaver" and isinstance(target, Hero) and target.team != attacker_team:
+            heal_amount = min(attacker.max_hp - attacker.hp, amount * 0.055)
+            attacker.hp += heal_amount
+            self.add_match_stat(attacker.team, "healing", heal_amount)
         if isinstance(target, Hero):
             if target.hero_key == "sentinel":
                 amount *= 0.92
             if target.hero_key == "vanguard" and target.hp / target.max_hp <= 0.4:
                 amount *= 0.9
+            if target.hero_key == "geomancer":
+                near_anchor = any(
+                    unit.alive and dist(target, unit) <= 150
+                    for unit in self.towers + [self.blue_core, self.red_core] + self.neutral_monsters
+                )
+                if near_anchor:
+                    amount *= 0.9
         return amount
 
 

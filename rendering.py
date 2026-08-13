@@ -41,18 +41,30 @@ class RenderingMixin:
                 c.create_line(hero.x, hero.y, hero.x + vx * 240, hero.y + vy * 240, fill=hero.accent, width=3, dash=(7, 5))
                 c.create_line(hero.x - vy * 10, hero.y + vx * 10, hero.x + vx * 220 - vy * 10, hero.y + vy * 220 + vx * 10, fill=hero.accent, width=1, dash=(7, 5))
                 c.create_line(hero.x + vy * 10, hero.y - vx * 10, hero.x + vx * 220 + vy * 10, hero.y + vy * 220 - vx * 10, fill=hero.accent, width=1, dash=(7, 5))
+            elif hero.hero_key == "geomancer":
+                angle = math.atan2(vy, vx)
+                for offset in (-0.18, 0, 0.18):
+                    ax = math.cos(angle + offset)
+                    ay = math.sin(angle + offset)
+                    c.create_line(hero.x, hero.y, hero.x + ax * 210, hero.y + ay * 210, fill=hero.accent, width=2, dash=(7, 5))
+            elif hero.hero_key == "tempest":
+                angle = math.atan2(vy, vx)
+                for offset in (-0.08, 0, 0.08):
+                    ax = math.cos(angle + offset)
+                    ay = math.sin(angle + offset)
+                    c.create_line(hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260, fill=hero.accent, width=2, dash=(8, 6))
             else:
                 c.create_line(hero.x, hero.y, hero.x + vx * 260, hero.y + vy * 260, fill=hero.accent, width=3, dash=(8, 6))
             end_x = hero.x + vx * 260
             end_y = hero.y + vy * 260
             c.create_oval(end_x - 14, end_y - 14, end_x + 14, end_y + 14, outline=hero.accent, width=2)
         elif self.aiming_skill == "e":
-            if hero.hero_key in {"sentinel", "arcanist"}:
-                radius = 82 if hero.hero_key == "arcanist" else 94
+            if hero.hero_key in {"sentinel", "arcanist", "geomancer"}:
+                radius = 82 if hero.hero_key == "arcanist" else 78 if hero.hero_key == "geomancer" else 94
                 c.create_oval(hero.x - radius, hero.y - radius, hero.x + radius, hero.y + radius, outline=hero.accent, width=2, dash=(8, 4))
                 c.create_oval(hero.x - 16, hero.y - 16, hero.x + 16, hero.y + 16, outline=hero.accent, width=2)
             else:
-                distance = 168 if hero.hero_key == "ranger" else 205 if hero.hero_key == "shade" else 236 if hero.hero_key == "weaver" else 120
+                distance = 168 if hero.hero_key == "ranger" else 205 if hero.hero_key == "shade" else 236 if hero.hero_key == "weaver" else 178 if hero.hero_key == "tempest" else 176 if hero.hero_key == "reaver" else 142 if hero.hero_key == "warden" else 120
                 end_x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
                 end_y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
                 c.create_line(hero.x, hero.y, end_x, end_y, fill=hero.accent, width=4, dash=(10, 6))
@@ -74,8 +86,14 @@ class RenderingMixin:
                 c.create_line(hero.x, hero.y, self.mouse_x, self.mouse_y, fill=hero.accent, width=4, dash=(10, 7))
                 c.create_oval(self.mouse_x - 108, self.mouse_y - 108, self.mouse_x + 108, self.mouse_y + 108, outline=hero.accent, width=2, dash=(8, 4))
                 c.create_oval(self.mouse_x - 54, self.mouse_y - 54, self.mouse_x + 54, self.mouse_y + 54, outline=hero.accent, width=1, dash=(6, 5))
+            elif hero.hero_key == "tempest":
+                angle = math.atan2(vy, vx)
+                for offset in (-0.42, -0.24, -0.08, 0.08, 0.24, 0.42):
+                    ax = math.cos(angle + offset)
+                    ay = math.sin(angle + offset)
+                    c.create_line(hero.x, hero.y, hero.x + ax * 250, hero.y + ay * 250, fill=hero.accent, width=2, dash=(10, 6))
             else:
-                radius = 96 if hero.hero_key == "vanguard" else 120 if hero.hero_key == "arcanist" else 136
+                radius = 96 if hero.hero_key == "vanguard" else 120 if hero.hero_key == "arcanist" else 118 if hero.hero_key == "warden" else 98 if hero.hero_key == "reaver" else 132 if hero.hero_key == "geomancer" else 136
                 c.create_oval(self.mouse_x - radius, self.mouse_y - radius, self.mouse_x + radius, self.mouse_y + radius, outline=hero.accent, width=2, dash=(8, 4))
                 c.create_oval(self.mouse_x - 12, self.mouse_y - 12, self.mouse_x + 12, self.mouse_y + 12, outline=hero.accent, width=2)
 
@@ -225,7 +243,8 @@ class RenderingMixin:
             outline = config["accent"] if active else "#394043"
             c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=outline, width=3)
             c.create_rectangle(left, top, right, top + 52, fill="#161c1f", outline="")
-            c.create_text(left + 16, top + 19, text=f"{index + 1}. {self.hero_name(hero_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 12, "bold"), width=150)
+            hotkey = "0" if index == 9 else str(index + 1)
+            c.create_text(left + 16, top + 19, text=f"{hotkey}. {self.hero_name(hero_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 12, "bold"), width=150)
             c.create_text(left + 16, top + 40, text=self.hero_role(hero_key), fill=config["accent"], anchor="w", font=("Segoe UI", 9, "bold"))
             self.draw_hero_icon(c, left + 161, top + 88, config)
 

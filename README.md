@@ -27,7 +27,7 @@
 
 | Heroes | Modes | Equipment | Languages | Dependencies | Entry |
 | --- | --- | --- | --- | --- | --- |
-| 6 | 3 | 12 | 中文 / English | 0 third-party packages | `python main.py` |
+| 10 | 3 | 12 | 中文 / English | 0 third-party packages | `python main.py` |
 
 ```mermaid
 flowchart LR
@@ -127,6 +127,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 | `F` | 闪现 |
 | `G` | 治疗 |
 | `1-9` | 在基地附近购买装备 |
+| `0` | 英雄选择页选择第 10 个英雄 |
 | `Tab` | 查看战绩面板 |
 | `Esc` | 退出 |
 
@@ -140,6 +141,10 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 | 玄甲 / Iron Sentinel | 坦克 | 承伤能力强，近身震荡、防御强化和大范围控制。 |
 | 影刃 / Night Shade | 刺客 | 移速和爆发高，短距影切、突进斩击和处决爆发。 |
 | 星索 / Aether Weaver | 刺客 | 以太索刃、钩索跃迁和范围束缚，适合高机动切入。 |
+| 曙光守护 / Dawn Warden | 辅助 | 辉光弹、位移治疗护盾和大范围曙光续航。 |
+| 赤刃 / Crimson Reaver | 战士 | 血刃突进、持续吸血和区域收割。 |
+| 岩术师 / Stone Geomancer | 法师 | 岩片齐射、护盾震荡和地震环控场。 |
+| 风暴游侠 / Tempest Duelist | 射手 | 风矢穿透、顺风位移和旋风连击压制。 |
 
 ### 模式区别
 
@@ -278,6 +283,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 | `F` | Flash |
 | `G` | Heal |
 | `1-9` | Buy equipment near base |
+| `0` | Select the 10th hero on the hero select screen |
 | `Tab` | Show scoreboard |
 | `Esc` | Quit |
 
@@ -291,6 +297,10 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 | Iron Sentinel / 玄甲 | Tank | High durability with close-range shock, fortify, and wide-area control. |
 | Night Shade / 影刃 | Assassin | Fast burst hero with shadow slash, engage dash, and execute burst. |
 | Aether Weaver / 星索 | Assassin | Mobile skirmisher with thread lance, grapple vault, and area snare burst. |
+| Dawn Warden / 曙光守护 | Support | Radiant poke, mobility, heal-shield sustain, and dawn zone recovery. |
+| Crimson Reaver / 赤刃 | Fighter | Blood crescent burst, diving lunge, lifesteal, and harvest finisher. |
+| Stone Geomancer / 岩术师 | Mage | Stone shard pressure, defensive shell, and earthquake zone control. |
+| Tempest Duelist / 风暴游侠 | Marksman | Piercing wind shots, attack reset mobility, and cyclone barrage. |
 
 ### Match Modes
 
@@ -367,7 +377,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 
 | Metric | Value |
 | --- | --- |
-| Hero count | 6 |
+| Hero count | 10 |
 | Match modes | 3 |
 | Equipment items | 12 |
 | Supported languages | 简体中文, English |
