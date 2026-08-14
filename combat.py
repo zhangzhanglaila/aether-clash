@@ -759,14 +759,15 @@ class CombatMixin:
             distance = 142
             hero.x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
             hero.y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
+            low_health = hero.hp / hero.max_hp <= 0.45
             raw_heal = 72 * self.skill_level_multiplier(hero, "e")
-            if hero.hp / hero.max_hp <= 0.45:
+            if low_health:
                 raw_heal *= 1.35
             heal_amount = min(hero.max_hp - hero.hp, raw_heal)
             hero.hp += heal_amount
             self.add_match_stat(hero.team, "healing", heal_amount)
             shield_amount = 66 * self.skill_level_multiplier(hero, "e")
-            if hero.hp / hero.max_hp <= 0.45:
+            if low_health:
                 shield_amount *= 1.28
             self.grant_shield(hero, shield_amount)
             self.spawn_beam(old_x, old_y, hero.x, hero.y, hero.accent, width=5, ttl=0.2)
@@ -818,7 +819,7 @@ class CombatMixin:
     def cast_r(self, hero):
         if not hero.alive:
             return
-        if dist_xy(hero.x, hero.y, self.mouse_x, self.mouse_y) > 340:
+        if hero.hero_key not in {"ranger", "tempest"} and dist_xy(hero.x, hero.y, self.mouse_x, self.mouse_y) > 340:
             return
         if not self.skill_ready(hero, "r"):
             return
@@ -910,10 +911,16 @@ class CombatMixin:
             allies = [unit for unit in [self.player, self.enemy_hero] if unit.alive and unit.team == hero.team]
             for ally in allies:
                 if dist_xy(self.mouse_x, self.mouse_y, ally.x, ally.y) <= 150:
-                    heal_amount = min(ally.max_hp - ally.hp, 82 * self.skill_level_multiplier(hero, "r"))
+                    low_health = ally.hp / ally.max_hp <= 0.45
+                    raw_heal = 82 * self.skill_level_multiplier(hero, "r")
+                    shield_amount = 42 * self.skill_level_multiplier(hero, "r")
+                    if low_health:
+                        raw_heal *= 1.35
+                        shield_amount *= 1.28
+                    heal_amount = min(ally.max_hp - ally.hp, raw_heal)
                     ally.hp += heal_amount
                     self.add_match_stat(hero.team, "healing", heal_amount)
-                    self.grant_shield(ally, 42 * self.skill_level_multiplier(hero, "r"))
+                    self.grant_shield(ally, shield_amount)
             return
 
         if hero.hero_key == "reaver":
@@ -1075,7 +1082,9 @@ class CombatMixin:
         self.record_damage_stats(target, amount, attacker_team)
         if self.try_last_stand(target, amount):
             return
+        effective_damage = min(amount, getattr(target, "hp", amount))
         target.take_damage(amount)
+        self.apply_on_damage_effects(target, attacker_team, effective_damage)
         if was_alive and not target.alive:
             if isinstance(target, NeutralMonster) and attacker_team in {"blue", "red"}:
                 self.reward_neutral(target, attacker_team)
@@ -1170,10 +1179,6 @@ class CombatMixin:
             amount *= 1.14
         if attacker and attacker.hero_key == "weaver" and target.team != attacker_team and (self.is_stunned(target) or self.now() < target.slowed_until):
             amount *= 1.12
-        if attacker and attacker.hero_key == "reaver" and isinstance(target, Hero) and target.team != attacker_team:
-            heal_amount = min(attacker.max_hp - attacker.hp, amount * 0.055)
-            attacker.hp += heal_amount
-            self.add_match_stat(attacker.team, "healing", heal_amount)
         if isinstance(target, Hero):
             if target.hero_key == "sentinel":
                 amount *= 0.92
@@ -1187,6 +1192,16 @@ class CombatMixin:
                 if near_anchor:
                     amount *= 0.9
         return amount
+
+
+    def apply_on_damage_effects(self, target, attacker_team, effective_damage):
+        attacker = self.hero_for_team(attacker_team)
+        if not attacker or effective_damage <= 0:
+            return
+        if attacker.hero_key == "reaver" and isinstance(target, Hero) and target.team != attacker_team:
+            heal_amount = min(attacker.max_hp - attacker.hp, effective_damage * 0.055)
+            attacker.hp += heal_amount
+            self.add_match_stat(attacker.team, "healing", heal_amount)
 
 
     def try_last_stand(self, target, amount):
