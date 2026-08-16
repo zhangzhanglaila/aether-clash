@@ -43,7 +43,7 @@ class CombatMixin:
                 p.x += nx * p.speed * dt
                 p.y += ny * p.speed * dt
                 if dist_xy(p.x, p.y, p.target.x, p.target.y) <= p.radius + p.target.radius:
-                    self.apply_damage(p.target, p.damage, p.team)
+                    self.apply_damage(p.target, p.damage, p.team, p.damage_type)
                     self.apply_projectile_control(p, p.target)
                     self.spawn_hit_fx(p.x, p.y, p.color)
                     continue
@@ -56,7 +56,7 @@ class CombatMixin:
                     targets = targets + [monster for monster in self.neutral_monsters if monster.alive]
                 for target in targets:
                     if target.alive and dist_xy(p.x, p.y, target.x, target.y) <= p.radius + target.radius:
-                        self.apply_damage(target, p.damage, p.team)
+                        self.apply_damage(target, p.damage, p.team, p.damage_type)
                         self.apply_projectile_control(p, target)
                         self.spawn_hit_fx(p.x, p.y, p.color)
                         hit = not p.pierce
@@ -147,6 +147,7 @@ class CombatMixin:
     def apply_slow(self, target, multiplier=0.58, duration=1.2):
         if not target.alive:
             return
+        duration *= max(0.45, 1 - getattr(target, "tenacity", 0))
         if self.now() >= target.slowed_until:
             target.slow_mult = multiplier
         else:
@@ -158,6 +159,7 @@ class CombatMixin:
     def apply_stun(self, target, duration=0.55):
         if not target.alive:
             return
+        duration *= max(0.45, 1 - getattr(target, "tenacity", 0))
         target.stunned_until = max(target.stunned_until, self.now() + duration)
         self.spawn_ring(target.x, target.y, "#f7d765", base_radius=42, ttl=0.24)
 
@@ -184,6 +186,10 @@ class CombatMixin:
                 radius = 7
                 self.spawn_ring(unit.x, unit.y, unit.accent, base_radius=38, ttl=0.22)
                 self.spawn_floating_text(unit.x, unit.y - 62, self.hero_passive_name(unit.hero_key), unit.accent, ttl=0.65)
+        if isinstance(unit, Hero) and unit.crit_chance > 0 and random.random() < min(0.75, unit.crit_chance):
+            damage *= unit.crit_damage
+            radius += 2
+            self.spawn_floating_text(unit.x, unit.y - 78, "CRIT", unit.accent, ttl=0.55)
         if isinstance(unit, Hero) and unit.hero_key == "tempest" and unit.passive_stacks > 0:
             unit.passive_stacks -= 1
             unit.next_attack = current + unit.attack_cd * 0.52
@@ -205,6 +211,7 @@ class CombatMixin:
                 color=color,
                 slow=slow,
                 slow_duration=slow_duration,
+                damage_type="physical",
             )
         )
 
@@ -1057,11 +1064,13 @@ class CombatMixin:
             self.spawn_floating_text(hero.x, hero.y - 42, text, "#f7d765", ttl=0.85)
 
 
-    def apply_damage(self, target, amount, attacker_team):
+    def apply_damage(self, target, amount, attacker_team, damage_type=""):
         if isinstance(target, (Tower, Core)):
             amount *= 1.35 if attacker_team == "blue" else 1.15
+        damage_type = self.infer_damage_type(attacker_team, damage_type)
         amount = self.apply_item_damage_modifiers(target, amount, attacker_team)
         amount = self.apply_hero_passive_modifiers(target, amount, attacker_team)
+        amount = self.apply_resistances(target, amount, attacker_team, damage_type)
         was_alive = target.alive
         if isinstance(target, Hero):
             target.last_attacker_team = attacker_team
@@ -1084,7 +1093,7 @@ class CombatMixin:
             return
         effective_damage = min(amount, getattr(target, "hp", amount))
         target.take_damage(amount)
-        self.apply_on_damage_effects(target, attacker_team, effective_damage)
+        self.apply_on_damage_effects(target, attacker_team, effective_damage, damage_type)
         if was_alive and not target.alive:
             if isinstance(target, NeutralMonster) and attacker_team in {"blue", "red"}:
                 self.reward_neutral(target, attacker_team)
@@ -1173,6 +1182,29 @@ class CombatMixin:
         return amount
 
 
+    def infer_damage_type(self, attacker_team, damage_type):
+        if damage_type:
+            return damage_type
+        attacker = self.hero_for_team(attacker_team)
+        if attacker and attacker.role in {"Mage", "Support"}:
+            return "magic"
+        return "physical"
+
+
+    def apply_resistances(self, target, amount, attacker_team, damage_type):
+        if damage_type == "true" or not isinstance(target, Hero):
+            return amount
+        attacker = self.hero_for_team(attacker_team)
+        if damage_type == "magic":
+            resist = target.magic_resist - (getattr(attacker, "magic_pen", 0) if attacker else 0)
+        else:
+            resist = target.armor - (getattr(attacker, "armor_pen", 0) if attacker else 0)
+        resist = max(-60, resist)
+        if resist >= 0:
+            return amount * 100 / (100 + resist)
+        return amount * (2 - 100 / (100 - resist))
+
+
     def apply_hero_passive_modifiers(self, target, amount, attacker_team):
         attacker = self.hero_for_team(attacker_team)
         if attacker and attacker.hero_key == "shade" and isinstance(target, Hero) and target.team != attacker_team and target.hp / target.max_hp <= 0.45:
@@ -1194,10 +1226,14 @@ class CombatMixin:
         return amount
 
 
-    def apply_on_damage_effects(self, target, attacker_team, effective_damage):
+    def apply_on_damage_effects(self, target, attacker_team, effective_damage, damage_type):
         attacker = self.hero_for_team(attacker_team)
         if not attacker or effective_damage <= 0:
             return
+        if damage_type == "physical" and attacker.lifesteal > 0 and target.team != attacker_team:
+            heal_amount = min(attacker.max_hp - attacker.hp, effective_damage * attacker.lifesteal)
+            attacker.hp += heal_amount
+            self.add_match_stat(attacker.team, "healing", heal_amount)
         if attacker.hero_key == "reaver" and isinstance(target, Hero) and target.team != attacker_team:
             heal_amount = min(attacker.max_hp - attacker.hp, effective_damage * 0.055)
             attacker.hp += heal_amount

@@ -406,17 +406,5 @@ class NetworkMixin:
         hero.gold -= cost
         hero.equipment[item_key] += 1
         self.add_match_stat(hero.team, "items_spent", cost)
-        if "attack_damage" in item:
-            hero.attack_damage += item["attack_damage"]
-        if "skill_power" in item:
-            hero.skill_power += item["skill_power"]
-        if "speed" in item:
-            hero.speed += item["speed"]
-        if "attack_range" in item:
-            hero.attack_range += item["attack_range"]
-        if "attack_cd_reduce" in item:
-            hero.attack_cd = max(0.2, hero.attack_cd - item["attack_cd_reduce"])
-        if "max_hp" in item:
-            hero.max_hp += item["max_hp"]
-            hero.hp += item["max_hp"]
+        self.apply_item_stats(hero, item)
         return True

@@ -205,6 +205,8 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
 
     def make_hero(self, hero_key, team, x, y):
         config = HEROES[hero_key]
+        role_armor = {"Tank": 32, "Fighter": 27, "Support": 24, "Assassin": 22, "Marksman": 20, "Mage": 18}
+        role_magic_resist = {"Tank": 24, "Fighter": 22, "Support": 24, "Assassin": 18, "Marksman": 18, "Mage": 20}
         return Hero(
             x=x,
             y=y,
@@ -222,6 +224,8 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
             accent=config["accent"],
             skill_cds=dict(config["cooldowns"]),
             skill_names=dict(config["skills"]),
+            armor=config.get("armor", role_armor.get(config["role"], 20)),
+            magic_resist=config.get("magic_resist", role_magic_resist.get(config["role"], 18)),
             equipment={key: 0 for key in ITEMS},
         )
 

@@ -31,19 +31,7 @@ class EconomyMixin:
         self.player.gold -= cost
         self.player.equipment[item_key] += 1
         self.add_match_stat(self.player.team, "items_spent", cost)
-        if "attack_damage" in item:
-            self.player.attack_damage += item["attack_damage"]
-        if "skill_power" in item:
-            self.player.skill_power += item["skill_power"]
-        if "speed" in item:
-            self.player.speed += item["speed"]
-        if "attack_range" in item:
-            self.player.attack_range += item["attack_range"]
-        if "attack_cd_reduce" in item:
-            self.player.attack_cd = max(0.2, self.player.attack_cd - item["attack_cd_reduce"])
-        if "max_hp" in item:
-            self.player.max_hp += item["max_hp"]
-            self.player.hp += item["max_hp"]
+        self.apply_item_stats(self.player, item)
         self.show_message(self.text("bought", item=self.item_name(item_key)))
         gain_text = self.item_gain_text(item)
         if gain_text:
@@ -66,10 +54,35 @@ class EconomyMixin:
             parts.append(f"+{item['attack_range']} {self.text('stat_range')}")
         if item.get("attack_cd_reduce"):
             parts.append(f"+{int(item['attack_cd_reduce'] * 100)} {self.text('stat_haste')}")
+        if item.get("armor"):
+            parts.append(f"+{item['armor']} {self.text('stat_armor')}")
+        if item.get("magic_resist"):
+            parts.append(f"+{item['magic_resist']} {self.text('stat_magic_resist')}")
+        if item.get("armor_pen"):
+            parts.append(f"+{item['armor_pen']} {self.text('stat_armor_pen')}")
+        if item.get("magic_pen"):
+            parts.append(f"+{item['magic_pen']} {self.text('stat_magic_pen')}")
+        if item.get("crit_chance"):
+            parts.append(f"+{int(item['crit_chance'] * 100)}% {self.text('stat_crit')}")
+        if item.get("lifesteal"):
+            parts.append(f"+{int(item['lifesteal'] * 100)}% {self.text('stat_lifesteal')}")
+        if item.get("tenacity"):
+            parts.append(f"+{int(item['tenacity'] * 100)}% {self.text('stat_tenacity')}")
         passive_key = item.get("passive")
         if passive_key:
             parts.append(self.text(f"passive_{passive_key}"))
         return " / ".join(parts[:3])
+
+
+    def apply_item_stats(self, hero, item):
+        for stat in ("attack_damage", "skill_power", "speed", "attack_range", "armor", "magic_resist", "armor_pen", "magic_pen", "crit_chance", "lifesteal", "tenacity"):
+            if stat in item:
+                setattr(hero, stat, getattr(hero, stat, 0) + item[stat])
+        if "attack_cd_reduce" in item:
+            hero.attack_cd = max(0.2, hero.attack_cd - item["attack_cd_reduce"])
+        if "max_hp" in item:
+            hero.max_hp += item["max_hp"]
+            hero.hp += item["max_hp"]
 
 
     def missing_item_requirement(self, hero, item):

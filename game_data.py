@@ -347,6 +347,13 @@ L10N = {
         "stat_speed": "SPD",
         "stat_range": "RANGE",
         "stat_haste": "HASTE",
+        "stat_armor": "ARMOR",
+        "stat_magic_resist": "M.RES",
+        "stat_armor_pen": "PEN",
+        "stat_magic_pen": "M.PEN",
+        "stat_crit": "CRIT",
+        "stat_lifesteal": "LIFESTEAL",
+        "stat_tenacity": "TENACITY",
         "passive_damage_reduction": "Damage reduction",
         "passive_last_stand": "Revive once",
         "passive_neutral_hunter": "Jungle bonus",
@@ -596,6 +603,13 @@ L10N = {
         "stat_speed": "移速",
         "stat_range": "射程",
         "stat_haste": "急速",
+        "stat_armor": "护甲",
+        "stat_magic_resist": "法抗",
+        "stat_armor_pen": "穿透",
+        "stat_magic_pen": "法穿",
+        "stat_crit": "暴击",
+        "stat_lifesteal": "吸血",
+        "stat_tenacity": "韧性",
         "passive_damage_reduction": "减伤被动",
         "passive_last_stand": "复活被动",
         "passive_neutral_hunter": "打野加成",
@@ -802,6 +816,14 @@ class Hero(Unit):
     skill_power: float = 0
     skill_cds: dict = field(default_factory=lambda: {"q": 3.6, "e": 5.5, "r": 13.5})
     skill_names: dict = field(default_factory=lambda: {"q": "Spear Line", "e": "Shield Rush", "r": "Earth Break"})
+    armor: float = 20
+    magic_resist: float = 18
+    armor_pen: float = 0
+    magic_pen: float = 0
+    crit_chance: float = 0
+    crit_damage: float = 1.75
+    lifesteal: float = 0
+    tenacity: float = 0
     level: int = 1
     xp: int = 0
     next_xp: int = 120
@@ -869,6 +891,7 @@ class Projectile:
     slow: float = 0
     slow_duration: float = 0
     stun: float = 0
+    damage_type: str = ""
 
 
 @dataclass

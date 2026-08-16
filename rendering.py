@@ -752,6 +752,20 @@ class RenderingMixin:
             parts.append(f"+{item['attack_range']} {self.text('stat_range')}")
         if item.get("attack_cd_reduce"):
             parts.append(f"+{int(item['attack_cd_reduce'] * 100)} {self.text('stat_haste')}")
+        if item.get("armor"):
+            parts.append(f"+{item['armor']} {self.text('stat_armor')}")
+        if item.get("magic_resist"):
+            parts.append(f"+{item['magic_resist']} {self.text('stat_magic_resist')}")
+        if item.get("armor_pen"):
+            parts.append(f"+{item['armor_pen']} {self.text('stat_armor_pen')}")
+        if item.get("magic_pen"):
+            parts.append(f"+{item['magic_pen']} {self.text('stat_magic_pen')}")
+        if item.get("crit_chance"):
+            parts.append(f"+{int(item['crit_chance'] * 100)}% {self.text('stat_crit')}")
+        if item.get("lifesteal"):
+            parts.append(f"+{int(item['lifesteal'] * 100)}% {self.text('stat_lifesteal')}")
+        if item.get("tenacity"):
+            parts.append(f"+{int(item['tenacity'] * 100)}% {self.text('stat_tenacity')}")
         passive_key = item.get("passive")
         if passive_key:
             parts.append(self.text(f"passive_{passive_key}"))
@@ -775,8 +789,10 @@ class RenderingMixin:
         c.create_text(left + 14, top + 44, text=f"{self.text('equipment_stats')}: {self.full_item_stat_text(item)}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=188)
         y = top + 78
         missing_item = self.missing_item_requirement(self.player, item)
-        if missing_item:
-            c.create_text(left + 14, y, text=self.text("equipment_requires", item=self.item_name(missing_item)), fill="#ffb0aa", anchor="w", font=("Segoe UI", 9, "bold"))
+        requirement_text = self.item_requirement_text(item)
+        if requirement_text:
+            color = "#ffb0aa" if missing_item else "#d8cf9b"
+            c.create_text(left + 14, y, text=self.text("equipment_requires", item=requirement_text), fill=color, anchor="w", font=("Segoe UI", 9, "bold"), width=188)
             y += 22
         passive_key = item.get("passive")
         if passive_key:
@@ -796,7 +812,28 @@ class RenderingMixin:
             parts.append(f"+{item['attack_range']} {self.text('stat_range')}")
         if item.get("attack_cd_reduce"):
             parts.append(f"+{int(item['attack_cd_reduce'] * 100)} {self.text('stat_haste')}")
+        if item.get("armor"):
+            parts.append(f"+{item['armor']} {self.text('stat_armor')}")
+        if item.get("magic_resist"):
+            parts.append(f"+{item['magic_resist']} {self.text('stat_magic_resist')}")
+        if item.get("armor_pen"):
+            parts.append(f"+{item['armor_pen']} {self.text('stat_armor_pen')}")
+        if item.get("magic_pen"):
+            parts.append(f"+{item['magic_pen']} {self.text('stat_magic_pen')}")
+        if item.get("crit_chance"):
+            parts.append(f"+{int(item['crit_chance'] * 100)}% {self.text('stat_crit')}")
+        if item.get("lifesteal"):
+            parts.append(f"+{int(item['lifesteal'] * 100)}% {self.text('stat_lifesteal')}")
+        if item.get("tenacity"):
+            parts.append(f"+{int(item['tenacity'] * 100)}% {self.text('stat_tenacity')}")
         return " / ".join(parts) if parts else "-"
+
+    def item_requirement_text(self, item):
+        parts = []
+        for item_key, level in item.get("requires", {}).items():
+            current = self.player.equipment.get(item_key, 0)
+            parts.append(f"{self.item_name(item_key)} {current}/{level}")
+        return " + ".join(parts)
 
     def draw_scoreboard(self, c):
         left = 218
