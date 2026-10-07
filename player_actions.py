@@ -8,6 +8,7 @@ class PlayerActionsMixin:
         self.aiming_skill = None
         self.recalling = True
         self.recall_elapsed = 0.0
+        self.play_sound("recall", 0.6)
         text = self.text("recall_start")
         self.show_message(text)
         self.spawn_banner(text, "#d8cf9b", ttl=1.2)
@@ -88,6 +89,7 @@ class PlayerActionsMixin:
         if self.state != "playing" or not self.player.alive or not self.summoner_ready("f"):
             return
         self.summoner_cooldowns["f"] = self.now() + self.summoner_cd_durations["f"]
+        self.play_sound("flash", 0.7)
         old_x, old_y = self.player.x, self.player.y
         vx, vy = self.aim_vector(self.player)
         distance = 170
@@ -104,6 +106,7 @@ class PlayerActionsMixin:
         if self.state != "playing" or not self.player.alive or not self.summoner_ready("g"):
             return
         self.summoner_cooldowns["g"] = self.now() + self.summoner_cd_durations["g"]
+        self.play_sound("heal", 0.65)
         amount = min(self.player.max_hp - self.player.hp, self.player.max_hp * 0.32)
         self.player.hp = min(self.player.max_hp, self.player.hp + amount)
         self.add_match_stat(self.player.team, "healing", amount)

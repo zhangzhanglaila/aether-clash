@@ -32,6 +32,7 @@ class EconomyMixin:
         self.player.equipment[item_key] += 1
         self.add_match_stat(self.player.team, "items_spent", cost)
         self.apply_item_stats(self.player, item)
+        self.play_sound("buy", 0.7)
         self.show_message(self.text("bought", item=self.item_name(item_key)))
         gain_text = self.item_gain_text(item)
         if gain_text:

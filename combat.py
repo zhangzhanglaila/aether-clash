@@ -214,6 +214,8 @@ class CombatMixin:
                 damage_type="physical",
             )
         )
+        if isinstance(unit, Hero):
+            self.play_sound("attack", 0.45 if unit is self.player else 0.28, min_interval=0.08)
 
 
     def hero_attack(self, hero, forced_target=None):
@@ -527,6 +529,7 @@ class CombatMixin:
     def cast_q(self, hero):
         if not self.skill_ready(hero, "q"):
             return
+        self.play_sound("cast", 0.55 if hero is self.player else 0.35)
         vx, vy = self.aim_vector(hero)
         self.spawn_cast_fx(hero, "q")
         if hero.hero_key == "sentinel":
@@ -711,6 +714,7 @@ class CombatMixin:
     def cast_e(self, hero):
         if not self.skill_ready(hero, "e"):
             return
+        self.play_sound("cast", 0.55 if hero is self.player else 0.35)
         vx, vy = self.aim_vector(hero)
         self.spawn_cast_fx(hero, "e")
         if hero.hero_key == "sentinel":
@@ -830,6 +834,7 @@ class CombatMixin:
             return
         if not self.skill_ready(hero, "r"):
             return
+        self.play_sound("cast_big", 0.65 if hero is self.player else 0.4)
         self.spawn_cast_fx(hero, "r")
 
         if hero.hero_key == "sentinel":
@@ -1059,6 +1064,7 @@ class CombatMixin:
         self.spawn_particles(hero.x, hero.y, hero.accent, count=22, speed=170, spread=1.1, radius=3.0, ttl=0.42)
         self.spawn_ring(hero.x, hero.y, hero.accent, base_radius=62, ttl=0.32)
         if not silent and hero.team == "blue":
+            self.play_sound("levelup", 0.65)
             text = self.text("level_up", level=hero.level)
             self.show_message(text)
             self.spawn_floating_text(hero.x, hero.y - 42, text, "#f7d765", ttl=0.85)
@@ -1074,6 +1080,7 @@ class CombatMixin:
         was_alive = target.alive
         if isinstance(target, Hero):
             target.last_attacker_team = attacker_team
+            self.play_sound("hit", 0.5, min_interval=0.09)
         if target is self.player and self.recalling:
             self.cancel_recall()
         if target is self.enemy_hero and self.enemy_recalling and attacker_team == "blue":
@@ -1095,6 +1102,10 @@ class CombatMixin:
         target.take_damage(amount)
         self.apply_on_damage_effects(target, attacker_team, effective_damage, damage_type)
         if was_alive and not target.alive:
+            if isinstance(target, Hero):
+                self.play_sound("kill", 0.8)
+            elif isinstance(target, (Tower, Core)):
+                self.play_sound("tower", 0.75)
             if isinstance(target, NeutralMonster) and attacker_team in {"blue", "red"}:
                 self.reward_neutral(target, attacker_team)
                 target.respawn_at = self.now() + target.respawn_delay

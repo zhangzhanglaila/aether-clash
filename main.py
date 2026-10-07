@@ -17,6 +17,7 @@ from game_data import (
 )
 from equipment_data import ITEMS
 from ai import AiMixin
+from audio import SoundBank
 from combat import CombatMixin
 from economy import EconomyMixin
 from input_handler import InputMixin
@@ -42,6 +43,8 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.running = True
+        self.sfx = SoundBank()
+        self._sound_last_played = {}
         self.keys = set()
         self.mouse_x = WIDTH // 2
         self.mouse_y = HEIGHT // 2
@@ -369,6 +372,16 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
 
     def now(self):
         return time.perf_counter()
+
+    def play_sound(self, name, volume=1.0, min_interval=0.0):
+        if not self.sfx.enabled:
+            return
+        last = self._sound_last_played.get(name, -1.0)
+        current = self.now()
+        if current - last < min_interval:
+            return
+        self._sound_last_played[name] = current
+        self.sfx.play(name, volume)
 
     def loop(self):
         current = time.perf_counter()

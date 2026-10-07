@@ -246,6 +246,9 @@ class MapSystemsMixin:
         elif not self.red_core.alive:
             self.match_over = True
             self.winner = "blue"
+        else:
+            return
+        self.play_sound("victory" if self.winner == "blue" else "defeat", 0.85)
 
 
     def respawn(self, hero):
