@@ -1,4 +1,5 @@
 import argparse
+import random
 import time
 
 import pygame
@@ -41,10 +42,15 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         pygame.init()
         pygame.display.set_caption("Aether Clash")
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.world_surface = pygame.Surface((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.running = True
         self.sfx = SoundBank()
         self._sound_last_played = {}
+        self.shake_until = 0.0
+        self.shake_strength = 0.0
+        self.shake_duration = 1.0
+        self.freeze_until = 0.0
         self.keys = set()
         self.mouse_x = WIDTH // 2
         self.mouse_y = HEIGHT // 2
@@ -229,6 +235,8 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         rule = self.mode_rule()
         self.match_over = False
         self.winner = None
+        self.shake_until = 0.0
+        self.freeze_until = 0.0
         self.spawn_timer = 0
         self.wave_index = 0
         self.match_time = 0
@@ -383,6 +391,25 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self._sound_last_played[name] = current
         self.sfx.play(name, volume)
 
+    def trigger_shake(self, strength, duration):
+        current = self.now()
+        if current < self.shake_until and self.shake_strength >= strength:
+            return
+        self.shake_until = current + duration
+        self.shake_duration = duration
+        self.shake_strength = strength
+
+    def shake_offset(self):
+        current = self.now()
+        if current >= self.shake_until:
+            return 0, 0
+        remaining = (self.shake_until - current) / max(self.shake_duration, 1e-6)
+        strength = self.shake_strength * remaining
+        return random.uniform(-strength, strength), random.uniform(-strength, strength)
+
+    def trigger_freeze(self, duration):
+        self.freeze_until = max(self.freeze_until, self.now() + duration)
+
     def loop(self):
         current = time.perf_counter()
         dt = min(0.05, current - self.last_time)
@@ -397,7 +424,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
             self.process_network_events()
             if self.network_role == "client":
                 self.network_client_tick()
-            elif not self.match_over:
+            elif not self.match_over and self.now() >= self.freeze_until:
                 self.update(dt)
                 self.network_after_update()
         self.draw()

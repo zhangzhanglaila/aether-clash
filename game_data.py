@@ -835,6 +835,7 @@ class Hero(Unit):
     equipment: dict = field(default_factory=lambda: {"blade": 0, "boots": 0, "guard": 0})
     item_passives_used: dict = field(default_factory=dict)
     respawn_at: float = 0
+    flash_until: float = 0.0
     cooldowns: dict = field(default_factory=lambda: {"q": 0, "e": 0, "r": 0})
     skill_levels: dict = field(default_factory=lambda: {"q": 1, "e": 1, "r": 0})
     skill_points: int = 0

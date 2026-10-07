@@ -266,21 +266,22 @@ class RenderingMixin:
 
 
     def draw(self):
-        c = self.screen
-        c.fill("#18261d")
-        if self.state == "language":
-            self.draw_language(c)
-            return
-        if self.state == "lobby":
-            self.draw_lobby(c)
-            return
-        if self.state == "select":
-            self.draw_select(c)
-            return
-        if self.state == "loading":
-            self.draw_loading(c)
+        if self.state in ("language", "lobby", "select", "loading"):
+            c = self.screen
+            c.fill("#18261d")
+            if self.state == "language":
+                self.draw_language(c)
+            elif self.state == "lobby":
+                self.draw_lobby(c)
+            elif self.state == "select":
+                self.draw_select(c)
+            else:
+                self.draw_loading(c)
             return
 
+        # The battle renders onto a world layer so screen shake can offset it while the HUD stays stable.
+        c = self.world_surface
+        c.fill("#18261d")
         self.draw_map(c)
         self.draw_structure_threats(c)
         for core in [self.blue_core, self.red_core]:
@@ -309,6 +310,10 @@ class RenderingMixin:
         for item in self.float_texts:
             text(c, item.x, item.y, item.text, item.color, 11, True)
         self.draw_locked_target(c)
+        offset_x, offset_y = self.shake_offset()
+        self.screen.fill("#0b0f11")
+        self.screen.blit(c, (round(offset_x), round(offset_y)))
+        screen = self.screen
         for index, banner in enumerate(self.banners[-3:]):
             alpha = banner.ttl / banner.max_ttl
             left = WIDTH // 2 - 220
@@ -317,9 +322,9 @@ class RenderingMixin:
             bottom = 172
             bottom += index * 58
             fill = "#101416" if alpha > 0.3 else "#0f1416"
-            rect(c, left, top, right, bottom, fill=fill, outline=banner.color, width=2)
-            text(c, WIDTH // 2, top + 27, banner.text, banner.color, 18, True)
-        self.draw_ui(c)
+            rect(screen, left, top, right, bottom, fill=fill, outline=banner.color, width=2)
+            text(screen, WIDTH // 2, top + 27, banner.text, banner.color, 18, True)
+        self.draw_ui(screen)
 
     def draw_language(self, c):
         rect(c, 0, 0, WIDTH, HEIGHT, fill="#14191c")
@@ -690,7 +695,8 @@ class RenderingMixin:
         for i, spread in enumerate([0, 2.35, -2.35]):
             length = 25 if i == 0 else 18
             pts.extend([hero.x + math.cos(angle + spread) * length, hero.y + math.sin(angle + spread) * length])
-        polygon(c, pts, fill=hero_color, outline=hero.accent, width=3)
+        flash_white = self.now() < hero.flash_until
+        polygon(c, pts, fill="#ffffff" if flash_white else hero_color, outline=hero.accent, width=3)
         oval(c, hero.x - 10, hero.y - 10, hero.x + 10, hero.y + 10, fill="#1a2024")
         if self.hero_in_brush(hero):
             oval(c, hero.x - 30, hero.y - 30, hero.x + 30, hero.y + 30, outline="#76f4a0", width=2, dash=(6, 5))

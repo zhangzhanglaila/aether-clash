@@ -835,6 +835,8 @@ class CombatMixin:
         if not self.skill_ready(hero, "r"):
             return
         self.play_sound("cast_big", 0.65 if hero is self.player else 0.4)
+        if hero is self.player:
+            self.trigger_shake(4, 0.18)
         self.spawn_cast_fx(hero, "r")
 
         if hero.hero_key == "sentinel":
@@ -1080,7 +1082,10 @@ class CombatMixin:
         was_alive = target.alive
         if isinstance(target, Hero):
             target.last_attacker_team = attacker_team
+            target.flash_until = self.now() + 0.09
             self.play_sound("hit", 0.5, min_interval=0.09)
+            if target is self.player:
+                self.trigger_shake(2.5, 0.12)
         if target is self.player and self.recalling:
             self.cancel_recall()
         if target is self.enemy_hero and self.enemy_recalling and attacker_team == "blue":
@@ -1104,8 +1109,12 @@ class CombatMixin:
         if was_alive and not target.alive:
             if isinstance(target, Hero):
                 self.play_sound("kill", 0.8)
+                self.trigger_shake(6, 0.28)
+                self.trigger_freeze(0.06)
             elif isinstance(target, (Tower, Core)):
                 self.play_sound("tower", 0.75)
+                self.trigger_shake(10, 0.4)
+                self.trigger_freeze(0.1)
             if isinstance(target, NeutralMonster) and attacker_team in {"blue", "red"}:
                 self.reward_neutral(target, attacker_team)
                 target.respawn_at = self.now() + target.respawn_delay
