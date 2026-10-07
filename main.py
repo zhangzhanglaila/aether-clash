@@ -84,6 +84,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
 
         self._map_surface = None
         self._menu_backdrop = None
+        self._trail_layer = None
 
         self.paths = {
             "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],

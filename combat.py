@@ -37,6 +37,9 @@ class CombatMixin:
             p.ttl -= dt
             if p.ttl <= 0:
                 continue
+            p.trail.append((p.x, p.y))
+            if len(p.trail) > 7:
+                p.trail.pop(0)
 
             if p.target and getattr(p.target, "alive", False):
                 nx, ny = norm(p.target.x - p.x, p.target.y - p.y)

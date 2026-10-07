@@ -899,6 +899,7 @@ class Projectile:
     slow_duration: float = 0
     stun: float = 0
     damage_type: str = ""
+    trail: list = field(default_factory=list)
 
 
 @dataclass

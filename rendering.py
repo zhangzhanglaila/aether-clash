@@ -306,6 +306,7 @@ class RenderingMixin:
             self.draw_minion(c, minion)
         for monster in self.neutral_monsters:
             self.draw_neutral_monster(c, monster)
+        self.draw_projectile_trails(c)
         self.draw_hero(c, self.player)
         if self.hero_visible_to_player(self.enemy_hero):
             self.draw_hero(c, self.enemy_hero)
@@ -627,64 +628,18 @@ class RenderingMixin:
                 text(c, target.x, target.y - 104, self.text("structure_targeted"), threat_color, 8, True)
 
     def draw_core(self, c, core):
-        core_color = team_color(core.team)
-        oval(
-            c,
-            core.x - core.radius,
-            core.y - core.radius,
-            core.x + core.radius,
-            core.y + core.radius,
-            fill=core_color,
-            outline="#f5f1d7",
-            width=3,
-        )
-        oval(c, core.x - 14, core.y - 14, core.x + 14, core.y + 14, fill="#f5f1d7")
+        crystal = sprites.core_sprite(core.team)
+        c.blit(crystal, crystal.get_rect(center=(round(core.x), round(core.y))))
         self.draw_bar(c, core.x - 42, core.y - 50, 84, core.hp, core.max_hp, "#48d06b")
 
     def draw_tower(self, c, tower):
-        tower_color = team_color(tower.team)
-        x, y, r = tower.x, tower.y, tower.radius
-        rect(c, x - r, y - r, x + r, y + r, fill="#2e3335", outline=tower_color, width=3)
-        if tower.tier == "base":
-            rect(c, x - r + 5, y - r + 5, x + r - 5, y + r - 5, outline="#f7d765", width=2)
-        polygon(c, [x, y - r - 16, x - 18, y, x + 18, y], fill=tower_color, outline="#f5f1d7")
-        self.draw_bar(c, x - 30, y - 38, 60, tower.hp, tower.max_hp, "#48d06b")
+        turret = sprites.tower_sprite(tower.team, tower.tier)
+        c.blit(turret, (round(tower.x - 32), round(tower.y - 30)))
+        self.draw_bar(c, tower.x - 30, tower.y - 38, 60, tower.hp, tower.max_hp, "#48d06b")
 
     def draw_minion(self, c, minion):
-        minion_color = team_color(minion.team)
-        outline = "#f7d765" if minion.empowered else "#15191b"
-        width = 3 if minion.empowered else 2
-        if minion.kind == "ranged":
-            polygon(
-                c,
-                [
-                    minion.x,
-                    minion.y - minion.radius - 2,
-                    minion.x - minion.radius - 1,
-                    minion.y + minion.radius,
-                    minion.x + minion.radius + 1,
-                    minion.y + minion.radius,
-                ],
-                fill=minion_color,
-                outline=outline,
-                width=width,
-            )
-        elif minion.kind == "siege":
-            r = minion.radius
-            rect(c, minion.x - r - 4, minion.y - r, minion.x + r + 4, minion.y + r, fill=minion_color, outline=outline, width=width)
-            oval(c, minion.x - r - 8, minion.y + r - 5, minion.x - r + 2, minion.y + r + 5, fill="#101416")
-            oval(c, minion.x + r - 2, minion.y + r - 5, minion.x + r + 8, minion.y + r + 5, fill="#101416")
-        else:
-            oval(
-                c,
-                minion.x - minion.radius,
-                minion.y - minion.radius,
-                minion.x + minion.radius,
-                minion.y + minion.radius,
-                fill=minion_color,
-                outline=outline,
-                width=width,
-            )
+        body = sprites.minion_sprite(minion.kind, minion.team, int(self.now() * 2.6) % 2)
+        c.blit(body, body.get_rect(center=(round(minion.x), round(minion.y))))
         if minion.empowered:
             oval(c, minion.x - minion.radius - 8, minion.y - minion.radius - 8, minion.x + minion.radius + 8, minion.y + minion.radius + 8, outline="#f7d765", width=1, dash=(4, 4))
         self.draw_bar(c, minion.x - 18, minion.y - minion.radius - 12, 36, minion.hp, minion.max_hp, "#48d06b")
@@ -698,8 +653,8 @@ class RenderingMixin:
             return
         r = monster.radius
         oval(c, monster.x - r - 8, monster.y - r - 8, monster.x + r + 8, monster.y + r + 8, fill="#101416", outline=monster.color, width=2)
-        oval(c, monster.x - r, monster.y - r, monster.x + r, monster.y + r, fill=monster.color, outline="#f5f1d7", width=2)
-        oval(c, monster.x - 8, monster.y - 8, monster.x + 8, monster.y + 8, fill="#20282b")
+        creature = sprites.monster_sprite(monster.color, r)
+        c.blit(creature, creature.get_rect(center=(round(monster.x), round(monster.y))))
         self.draw_bar(c, monster.x - 34, monster.y - r - 18, 68, monster.hp, monster.max_hp, "#48d06b")
 
     def draw_hero(self, c, hero):
@@ -868,6 +823,26 @@ class RenderingMixin:
         mx = left + x / WIDTH * w
         my = top + y / HEIGHT * h
         oval(c, mx - r, my - r, mx + r, my + r, fill=dot_color)
+
+    def draw_projectile_trails(self, c):
+        if not self.projectiles:
+            return
+        if self._trail_layer is None:
+            self._trail_layer = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        layer = self._trail_layer
+        layer.fill((0, 0, 0, 0))
+        drew = False
+        for p in self.projectiles:
+            count = len(p.trail)
+            if not count:
+                continue
+            rgb = tuple(color(p.color))[:3]
+            for index, (tx, ty) in enumerate(p.trail):
+                fade = (index + 1) / count
+                pygame.draw.circle(layer, (*rgb, int(80 * fade)), (round(tx), round(ty)), max(1, int(p.radius * 0.75 * fade)))
+                drew = True
+        if drew:
+            c.blit(layer, (0, 0))
 
     def draw_locked_target(self, c):
         target = self.valid_locked_target(self.player)
