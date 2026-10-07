@@ -5,15 +5,15 @@
 **一款可以直接运行、阅读源码并继续扩展的 2D MOBA 竞技场游戏。**
 
 ![Python](https://img.shields.io/badge/Python-3.x-3776AB)
-![Dependencies](https://img.shields.io/badge/dependencies-standard%20library-2ea44f)
-![UI](https://img.shields.io/badge/UI-tkinter-f0ad4e)
+![Dependencies](https://img.shields.io/badge/dependencies-pygame--ce%202.5+-2ea44f)
+![UI](https://img.shields.io/badge/UI-pygame--ce-f0ad4e)
 ![Mode](https://img.shields.io/badge/current%20focus-1v1%20MOBA-8a63d2)
 
 | English | 简体中文 |
 | --- | --- |
-| A compact MOBA sandbox built with only Python standard library and `tkinter`: heroes, skills, AI, lanes, towers, jungle, shop, XP, scoreboard, and bilingual UI in one readable codebase. | 一个只用 Python 标准库和 `tkinter` 做出来的紧凑 MOBA 沙盒：英雄、技能、AI、兵线、防御塔、野区、商店、经验、战绩面板和中英双语 UI 都在一个可读代码库里。 |
+| A compact MOBA sandbox built with Python and `pygame-ce`: heroes, skills, AI, lanes, towers, jungle, shop, XP, scoreboard, and bilingual UI in one readable codebase. | 一个用 Python 和 `pygame-ce` 做出来的紧凑 MOBA 沙盒：英雄、技能、AI、兵线、防御塔、野区、商店、经验、战绩面板和中英双语 UI 都在一个可读代码库里。 |
 
-`Python` `tkinter` `MOBA` `Game Sandbox` `Learning Project` `Bilingual UI` `No third-party dependencies`
+`Python` `pygame-ce` `MOBA` `Game Sandbox` `Learning Project` `Bilingual UI`
 
 **Language / 语言:** [简体中文](#zh) | [English](#en)
 
@@ -21,13 +21,13 @@
 | --- | --- |
 | It is not just a toy scene: it has lanes, objectives, AI choices, skills, equipment, XP, levels, UI flow, and settlement. | 它不是单个小游戏场景，而是有兵线、目标点、AI 决策、技能、装备、经验、等级、页面流程和结算的完整原型。 |
 | It is intentionally readable: rendering, input, combat, AI, economy, map systems, and player actions are split into focused modules. | 它刻意保持可读：渲染、输入、战斗、AI、经济、地图系统和玩家动作已经拆成清晰模块。 |
-| It runs without installing packages, which makes it easy to clone, run, inspect, and modify. | 它不需要安装依赖，适合直接 clone、运行、读源码和继续改。 |
+| It runs on a single small dependency, which makes it easy to clone, install, run, inspect, and modify. | 它只有一个轻量依赖，clone、安装、运行、读源码和继续改都很方便。 |
 
 ### At a Glance / 一眼看懂
 
 | Heroes | Modes | Equipment | Languages | Dependencies | Entry |
 | --- | --- | --- | --- | --- | --- |
-| 10 | 3 | 12 | 中文 / English | 0 third-party packages | `python main.py` |
+| 10 | 3 | 12 | 中文 / English | `pygame-ce` | `python main.py` |
 
 ```mermaid
 flowchart LR
@@ -49,9 +49,13 @@ flowchart LR
 
 ### 项目简介
 
-`Aether Clash` 是一个可直接运行的 2D MOBA 原型沙盒。当前重点是先完善 1v1 体验，再逐步扩展到 3v3 / 5v5，并在后续阶段迁移到 `pygame`。
+`Aether Clash` 是一个可直接运行的 2D MOBA 原型沙盒。当前重点是先完善 1v1 体验，再逐步扩展到 3v3 / 5v5。渲染层已从 `tkinter` 迁移到 `pygame-ce`，为精灵动画、特效和音频打基础。
 
-当前版本不需要安装第三方依赖，只使用 Python 标准库。
+安装依赖后运行：
+
+```powershell
+pip install -r requirements.txt
+```
 
 ### 适合谁
 
@@ -64,17 +68,18 @@ flowchart LR
 
 | 亮点 | 价值 |
 | --- | --- |
-| 纯 Python 标准库 | clone 后直接运行，环境成本低。 |
+| 只依赖 `pygame-ce` | clone 后一条 `pip install` 即可运行，环境成本低。 |
 | 模块化结构 | 后续加英雄、改 AI、换渲染层更容易。 |
 | 中英双语 UI | 适合中文玩家，也方便英文 README 展示。 |
 | 真实 MOBA 子系统 | 不是只画角色移动，而是有经济、经验、技能、目标点和结算。 |
-| 可迁移路线 | 先把玩法跑通，再迁移到 `pygame` 做更强表现。 |
+| pygame-ce 运行时 | 先把玩法跑通，渲染层已迁移到 `pygame-ce`，为精灵动画、特效和音频铺路。 |
 
 ### 快速开始
 
 ```powershell
 git clone https://github.com/zhangzhanglaila/aether-clash.git
 cd aether-clash
+pip install -r requirements.txt
 python main.py
 ```
 
@@ -206,9 +211,13 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 
 ### Overview
 
-`Aether Clash` is a runnable 2D MOBA prototype sandbox. The current focus is to polish the 1v1 experience first, then expand toward 3v3 / 5v5, and later migrate the renderer/runtime to `pygame`.
+`Aether Clash` is a runnable 2D MOBA prototype sandbox. The current focus is to polish the 1v1 experience first, then expand toward 3v3 / 5v5. The renderer/runtime has been migrated from `tkinter` to `pygame-ce`, laying the groundwork for sprite animation, effects, and audio.
 
-The current version uses only the Python standard library. No third-party dependencies are required.
+Install the dependency, then run:
+
+```powershell
+pip install -r requirements.txt
+```
 
 ### Who Is This For?
 
@@ -221,17 +230,18 @@ The current version uses only the Python standard library. No third-party depend
 
 | Highlight | Value |
 | --- | --- |
-| Pure Python standard library | Clone and run without dependency setup. |
+| Single light dependency (`pygame-ce`) | Clone, one `pip install`, and run. |
 | Modular architecture | Easier to add heroes, tune AI, rebalance combat, or swap the renderer later. |
 | Bilingual UI | Usable in Simplified Chinese and English. |
 | Real MOBA subsystems | Includes economy, XP, skills, objectives, AI decisions, and settlement. |
-| Migration-ready roadmap | Gameplay first, then a future `pygame` runtime for better presentation. |
+| pygame-ce runtime | Sprite-ready renderer with 60 FPS loop, prepared for animation, effects, and audio. |
 
 ### Quick Start
 
 ```powershell
 git clone https://github.com/zhangzhanglaila/aether-clash.git
 cd aether-clash
+pip install -r requirements.txt
 python main.py
 ```
 
@@ -364,7 +374,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 | --- | --- |
 | Repository | `zhangzhanglaila/aether-clash` |
 | Language | Python |
-| UI runtime | `tkinter` |
+| UI runtime | `pygame-ce` |
 | Dependencies | Python standard library only |
 | Entry point | [`main.py`](main.py) |
 | Run command | `python main.py` |
@@ -373,7 +383,7 @@ python main.py --lan-join 192.168.1.20 --hero ranger --remote-hero vanguard --mo
 
 ### Topics
 
-`python` `tkinter` `game` `moba` `prototype` `bilingual` `ai` `2d-game`
+`python` `pygame` `game` `moba` `prototype` `bilingual` `ai` `2d-game`
 
 ### Stats
 
