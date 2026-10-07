@@ -1,6 +1,7 @@
 import math
 import random
-import tkinter as tk
+
+import pygame
 
 from equipment_data import HERO_RECOMMENDED_ITEMS, ITEMS
 from game_data import (
@@ -16,6 +17,172 @@ from game_data import (
     team_color,
 )
 
+# tkinter font sizes are points (~1.33px at 96dpi); pygame sizes are pixels.
+FONT_SCALE = 4 / 3
+
+_color_cache = {}
+
+
+def color(value):
+    cached = _color_cache.get(value)
+    if cached is None:
+        cached = pygame.Color(value)
+        _color_cache[value] = cached
+    return cached
+
+
+_fonts = {}
+
+
+def get_font(size, bold):
+    pixel_size = max(7, round(size * FONT_SCALE))
+    key = (pixel_size, bold)
+    if key not in _fonts:
+        _fonts[key] = pygame.font.SysFont("microsoftyahei,segoeui", pixel_size, bold=bold)
+    return _fonts[key]
+
+
+def rect(c, x1, y1, x2, y2, fill=None, outline=None, width=1):
+    box = pygame.Rect(round(x1), round(y1), round(x2 - x1), round(y2 - y1))
+    if box.width <= 0 or box.height <= 0:
+        return
+    if fill is not None:
+        pygame.draw.rect(c, color(fill), box)
+    if outline is not None:
+        pygame.draw.rect(c, color(outline), box, max(1, width))
+
+
+def oval(c, x1, y1, x2, y2, fill=None, outline=None, width=1, dash=None):
+    box = pygame.Rect(round(x1), round(y1), round(x2 - x1), round(y2 - y1))
+    if box.width <= 0 or box.height <= 0:
+        return
+    if fill is not None:
+        pygame.draw.ellipse(c, color(fill), box)
+    if outline is not None:
+        if dash:
+            dashed_ellipse(c, color(outline), box, max(1, width), dash)
+        else:
+            pygame.draw.ellipse(c, color(outline), box, max(1, width))
+
+
+def polygon(c, points, fill=None, outline=None, width=1):
+    pts = [(round(points[i]), round(points[i + 1])) for i in range(0, len(points) - 1, 2)]
+    if len(pts) < 3:
+        return
+    if fill is not None:
+        pygame.draw.polygon(c, color(fill), pts)
+    if outline is not None and width > 0:
+        pygame.draw.polygon(c, color(outline), pts, max(1, width))
+
+
+def dashed_line(c, clr, x1, y1, x2, y2, width=1, dash=(8, 6)):
+    dx = x2 - x1
+    dy = y2 - y1
+    length = math.hypot(dx, dy)
+    if length <= 0:
+        return
+    ux, uy = dx / length, dy / length
+    on, off = dash
+    t = 0.0
+    while t < length:
+        end = min(t + on, length)
+        pygame.draw.line(c, clr, (round(x1 + ux * t), round(y1 + uy * t)), (round(x1 + ux * end), round(y1 + uy * end)), width)
+        t += on + off
+
+
+def dashed_ellipse(c, clr, box, width=1, dash=(8, 6)):
+    rx = box.width / 2
+    ry = box.height / 2
+    if rx <= 0 or ry <= 0:
+        return
+    circumference = math.pi * (3 * (rx + ry) - math.sqrt((3 * rx + ry) * (rx + 3 * ry)))
+    on, off = dash
+    step_deg = (on + off) / max(circumference, 1.0) * 360.0
+    angle = 0.0
+    while angle < 360:
+        end = min(angle + step_deg * on / max(on + off, 1), 360)
+        if end > angle:
+            pygame.draw.arc(c, clr, box, math.radians(angle), math.radians(end), width)
+        angle += step_deg
+
+
+def line(c, points, fill, width=1, dash=None, rounded=True):
+    pts = [(round(points[i]), round(points[i + 1])) for i in range(0, len(points) - 1, 2)]
+    if len(pts) < 2:
+        return
+    clr = color(fill)
+    width = max(1, round(width))
+    if dash:
+        for i in range(len(pts) - 1):
+            dashed_line(c, clr, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], width, dash)
+        return
+    if len(pts) == 2:
+        pygame.draw.line(c, clr, pts[0], pts[1], width)
+    else:
+        pygame.draw.lines(c, clr, False, pts, width)
+    if rounded and width >= 2:
+        joint_radius = width // 2
+        for p in (pts[0], pts[-1]):
+            pygame.draw.circle(c, clr, p, joint_radius)
+        for p in pts[1:-1]:
+            pygame.draw.circle(c, clr, p, joint_radius)
+
+
+def pie(c, x, y, radius, pct, fill="#000000"):
+    pct = clamp(pct, 0, 1)
+    if pct <= 0:
+        return
+    pts = [(x, y)]
+    steps = max(2, int(40 * pct))
+    for i in range(steps + 1):
+        angle = math.radians(90 - 360 * pct * i / steps)
+        pts.append((round(x + math.cos(angle) * radius), round(y - math.sin(angle) * radius)))
+    pygame.draw.polygon(c, color(fill), pts)
+
+
+def wrap_text(font, value, max_width):
+    lines = []
+    for raw in str(value).split("\n"):
+        if font.size(raw)[0] <= max_width:
+            lines.append(raw)
+            continue
+        current = ""
+        for ch in raw:
+            if current and font.size(current + ch)[0] > max_width:
+                lines.append(current)
+                current = ch
+            else:
+                current += ch
+        if current:
+            lines.append(current)
+    return lines
+
+
+def blit_line(c, font, value, clr, x, y, anchor):
+    surf = font.render(value, True, clr)
+    box = surf.get_rect()
+    if anchor == "w":
+        box.midleft = (round(x), round(y))
+    elif anchor == "e":
+        box.midright = (round(x), round(y))
+    else:
+        box.center = (round(x), round(y))
+    c.blit(surf, box)
+
+
+def text(c, x, y, value, fill, size=12, bold=False, anchor="center", width=None):
+    font = get_font(size, bold)
+    clr = color(fill)
+    if width:
+        lines = wrap_text(font, value, width)
+        line_height = font.get_linesize()
+        total = line_height * len(lines)
+        top = y - total // 2
+        for index, ln in enumerate(lines):
+            blit_line(c, font, ln, clr, x, top + index * line_height + line_height // 2, anchor)
+        return
+    blit_line(c, font, str(value), clr, x, y, anchor)
+
 
 class RenderingMixin:
     def draw_skill_preview(self, c):
@@ -29,78 +196,78 @@ class RenderingMixin:
                 for offset in (-0.18, 0, 0.18):
                     ax = math.cos(angle + offset)
                     ay = math.sin(angle + offset)
-                    c.create_line(hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260, fill=hero.accent, width=3, dash=(8, 6))
+                    line(c, [hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260], hero.accent, 3, dash=(8, 6))
             elif hero.hero_key == "sentinel":
-                c.create_oval(hero.x - 72, hero.y - 72, hero.x + 72, hero.y + 72, outline=hero.accent, width=2, dash=(8, 4))
-                c.create_line(hero.x, hero.y, hero.x + vx * 150, hero.y + vy * 150, fill=hero.accent, width=3, dash=(8, 6))
+                oval(c, hero.x - 72, hero.y - 72, hero.x + 72, hero.y + 72, outline=hero.accent, width=2, dash=(8, 4))
+                line(c, [hero.x, hero.y, hero.x + vx * 150, hero.y + vy * 150], hero.accent, 3, dash=(8, 6))
             elif hero.hero_key == "arcanist":
-                c.create_line(hero.x, hero.y, hero.x + vx * 180, hero.y + vy * 180, fill=hero.accent, width=5, dash=(10, 6))
+                line(c, [hero.x, hero.y, hero.x + vx * 180, hero.y + vy * 180], hero.accent, 5, dash=(10, 6))
             elif hero.hero_key == "shade":
-                c.create_line(hero.x, hero.y, hero.x + vx * 165, hero.y + vy * 165, fill=hero.accent, width=4, dash=(8, 6))
+                line(c, [hero.x, hero.y, hero.x + vx * 165, hero.y + vy * 165], hero.accent, 4, dash=(8, 6))
             elif hero.hero_key == "weaver":
-                c.create_line(hero.x, hero.y, hero.x + vx * 240, hero.y + vy * 240, fill=hero.accent, width=3, dash=(7, 5))
-                c.create_line(hero.x - vy * 10, hero.y + vx * 10, hero.x + vx * 220 - vy * 10, hero.y + vy * 220 + vx * 10, fill=hero.accent, width=1, dash=(7, 5))
-                c.create_line(hero.x + vy * 10, hero.y - vx * 10, hero.x + vx * 220 + vy * 10, hero.y + vy * 220 - vx * 10, fill=hero.accent, width=1, dash=(7, 5))
+                line(c, [hero.x, hero.y, hero.x + vx * 240, hero.y + vy * 240], hero.accent, 3, dash=(7, 5))
+                line(c, [hero.x - vy * 10, hero.y + vx * 10, hero.x + vx * 220 - vy * 10, hero.y + vy * 220 + vx * 10], hero.accent, 1, dash=(7, 5))
+                line(c, [hero.x + vy * 10, hero.y - vx * 10, hero.x + vx * 220 + vy * 10, hero.y + vy * 220 - vx * 10], hero.accent, 1, dash=(7, 5))
             elif hero.hero_key == "geomancer":
                 angle = math.atan2(vy, vx)
                 for offset in (-0.18, 0, 0.18):
                     ax = math.cos(angle + offset)
                     ay = math.sin(angle + offset)
-                    c.create_line(hero.x, hero.y, hero.x + ax * 210, hero.y + ay * 210, fill=hero.accent, width=2, dash=(7, 5))
+                    line(c, [hero.x, hero.y, hero.x + ax * 210, hero.y + ay * 210], hero.accent, 2, dash=(7, 5))
             elif hero.hero_key == "tempest":
                 angle = math.atan2(vy, vx)
                 for offset in (-0.08, 0, 0.08):
                     ax = math.cos(angle + offset)
                     ay = math.sin(angle + offset)
-                    c.create_line(hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260, fill=hero.accent, width=2, dash=(8, 6))
+                    line(c, [hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260], hero.accent, 2, dash=(8, 6))
             else:
-                c.create_line(hero.x, hero.y, hero.x + vx * 260, hero.y + vy * 260, fill=hero.accent, width=3, dash=(8, 6))
+                line(c, [hero.x, hero.y, hero.x + vx * 260, hero.y + vy * 260], hero.accent, 3, dash=(8, 6))
             end_x = hero.x + vx * 260
             end_y = hero.y + vy * 260
-            c.create_oval(end_x - 14, end_y - 14, end_x + 14, end_y + 14, outline=hero.accent, width=2)
+            oval(c, end_x - 14, end_y - 14, end_x + 14, end_y + 14, outline=hero.accent, width=2)
         elif self.aiming_skill == "e":
             if hero.hero_key in {"sentinel", "arcanist", "geomancer"}:
                 radius = 82 if hero.hero_key == "arcanist" else 78 if hero.hero_key == "geomancer" else 94
-                c.create_oval(hero.x - radius, hero.y - radius, hero.x + radius, hero.y + radius, outline=hero.accent, width=2, dash=(8, 4))
-                c.create_oval(hero.x - 16, hero.y - 16, hero.x + 16, hero.y + 16, outline=hero.accent, width=2)
+                oval(c, hero.x - radius, hero.y - radius, hero.x + radius, hero.y + radius, outline=hero.accent, width=2, dash=(8, 4))
+                oval(c, hero.x - 16, hero.y - 16, hero.x + 16, hero.y + 16, outline=hero.accent, width=2)
             else:
                 distance = 168 if hero.hero_key == "ranger" else 205 if hero.hero_key == "shade" else 236 if hero.hero_key == "weaver" else 178 if hero.hero_key == "tempest" else 176 if hero.hero_key == "reaver" else 142 if hero.hero_key == "warden" else 120
                 end_x = clamp(hero.x + vx * distance, 35, WIDTH - 35)
                 end_y = clamp(hero.y + vy * distance, 35, HEIGHT - 35)
-                c.create_line(hero.x, hero.y, end_x, end_y, fill=hero.accent, width=4, dash=(10, 6))
+                line(c, [hero.x, hero.y, end_x, end_y], hero.accent, 4, dash=(10, 6))
                 if hero.hero_key == "weaver":
-                    c.create_oval(end_x - 62, end_y - 62, end_x + 62, end_y + 62, outline=hero.accent, width=2, dash=(8, 4))
+                    oval(c, end_x - 62, end_y - 62, end_x + 62, end_y + 62, outline=hero.accent, width=2, dash=(8, 4))
                 else:
-                    c.create_oval(end_x - 16, end_y - 16, end_x + 16, end_y + 16, outline=hero.accent, width=2)
+                    oval(c, end_x - 16, end_y - 16, end_x + 16, end_y + 16, outline=hero.accent, width=2)
         elif self.aiming_skill == "r":
             if hero.hero_key == "ranger":
                 angle = math.atan2(vy, vx)
                 for offset in (-0.52, -0.39, -0.26, -0.13, 0, 0.13, 0.26, 0.39, 0.52):
                     ax = math.cos(angle + offset)
                     ay = math.sin(angle + offset)
-                    c.create_line(hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260, fill=hero.accent, width=2, dash=(10, 6))
+                    line(c, [hero.x, hero.y, hero.x + ax * 260, hero.y + ay * 260], hero.accent, 2, dash=(10, 6))
             elif hero.hero_key == "shade":
-                c.create_line(hero.x, hero.y, self.mouse_x, self.mouse_y, fill=hero.accent, width=5, dash=(12, 8))
-                c.create_oval(self.mouse_x - 34, self.mouse_y - 34, self.mouse_x + 34, self.mouse_y + 34, outline=hero.accent, width=2)
+                line(c, [hero.x, hero.y, self.mouse_x, self.mouse_y], hero.accent, 5, dash=(12, 8))
+                oval(c, self.mouse_x - 34, self.mouse_y - 34, self.mouse_x + 34, self.mouse_y + 34, outline=hero.accent, width=2)
             elif hero.hero_key == "weaver":
-                c.create_line(hero.x, hero.y, self.mouse_x, self.mouse_y, fill=hero.accent, width=4, dash=(10, 7))
-                c.create_oval(self.mouse_x - 108, self.mouse_y - 108, self.mouse_x + 108, self.mouse_y + 108, outline=hero.accent, width=2, dash=(8, 4))
-                c.create_oval(self.mouse_x - 54, self.mouse_y - 54, self.mouse_x + 54, self.mouse_y + 54, outline=hero.accent, width=1, dash=(6, 5))
+                line(c, [hero.x, hero.y, self.mouse_x, self.mouse_y], hero.accent, 4, dash=(10, 7))
+                oval(c, self.mouse_x - 108, self.mouse_y - 108, self.mouse_x + 108, self.mouse_y + 108, outline=hero.accent, width=2, dash=(8, 4))
+                oval(c, self.mouse_x - 54, self.mouse_y - 54, self.mouse_x + 54, self.mouse_y + 54, outline=hero.accent, width=1, dash=(6, 5))
             elif hero.hero_key == "tempest":
                 angle = math.atan2(vy, vx)
                 for offset in (-0.42, -0.24, -0.08, 0.08, 0.24, 0.42):
                     ax = math.cos(angle + offset)
                     ay = math.sin(angle + offset)
-                    c.create_line(hero.x, hero.y, hero.x + ax * 250, hero.y + ay * 250, fill=hero.accent, width=2, dash=(10, 6))
+                    line(c, [hero.x, hero.y, hero.x + ax * 250, hero.y + ay * 250], hero.accent, 2, dash=(10, 6))
             else:
                 radius = 96 if hero.hero_key == "vanguard" else 120 if hero.hero_key == "arcanist" else 118 if hero.hero_key == "warden" else 98 if hero.hero_key == "reaver" else 132 if hero.hero_key == "geomancer" else 136
-                c.create_oval(self.mouse_x - radius, self.mouse_y - radius, self.mouse_x + radius, self.mouse_y + radius, outline=hero.accent, width=2, dash=(8, 4))
-                c.create_oval(self.mouse_x - 12, self.mouse_y - 12, self.mouse_x + 12, self.mouse_y + 12, outline=hero.accent, width=2)
+                oval(c, self.mouse_x - radius, self.mouse_y - radius, self.mouse_x + radius, self.mouse_y + radius, outline=hero.accent, width=2, dash=(8, 4))
+                oval(c, self.mouse_x - 12, self.mouse_y - 12, self.mouse_x + 12, self.mouse_y + 12, outline=hero.accent, width=2)
 
 
     def draw(self):
-        c = self.canvas
-        c.delete("all")
+        c = self.screen
+        c.fill("#18261d")
         if self.state == "language":
             self.draw_language(c)
             return
@@ -129,39 +296,18 @@ class RenderingMixin:
         if self.hero_visible_to_player(self.enemy_hero):
             self.draw_hero(c, self.enemy_hero)
         for p in self.projectiles:
-            c.create_oval(
-                p.x - p.radius,
-                p.y - p.radius,
-                p.x + p.radius,
-                p.y + p.radius,
-                fill=p.color,
-                outline="",
-            )
+            oval(c, p.x - p.radius, p.y - p.radius, p.x + p.radius, p.y + p.radius, fill=p.color)
         for e in self.effects:
             alpha_width = max(1, int(5 * e.ttl / e.max_ttl))
-            c.create_oval(
-                e.x - e.radius,
-                e.y - e.radius,
-                e.x + e.radius,
-                e.y + e.radius,
-                outline=e.color,
-                width=alpha_width,
-            )
+            oval(c, e.x - e.radius, e.y - e.radius, e.x + e.radius, e.y + e.radius, outline=e.color, width=alpha_width)
         for beam in self.beams:
             width = max(1, int(beam.width * beam.ttl / beam.max_ttl))
-            c.create_line(beam.x1, beam.y1, beam.x2, beam.y2, fill=beam.color, width=width, capstyle=tk.ROUND)
+            line(c, [beam.x1, beam.y1, beam.x2, beam.y2], beam.color, width)
         for p in self.particles:
             size = p.radius * (0.7 if p.shrink else 1)
-            c.create_oval(
-                p.x - size,
-                p.y - size,
-                p.x + size,
-                p.y + size,
-                fill=p.color,
-                outline="",
-            )
-        for text in self.float_texts:
-            c.create_text(text.x, text.y, text=text.text, fill=text.color, font=("Segoe UI", 11, "bold"))
+            oval(c, p.x - size, p.y - size, p.x + size, p.y + size, fill=p.color)
+        for item in self.float_texts:
+            text(c, item.x, item.y, item.text, item.color, 11, True)
         self.draw_locked_target(c)
         for index, banner in enumerate(self.banners[-3:]):
             alpha = banner.ttl / banner.max_ttl
@@ -171,16 +317,16 @@ class RenderingMixin:
             bottom = 172
             bottom += index * 58
             fill = "#101416" if alpha > 0.3 else "#0f1416"
-            c.create_rectangle(left, top, right, bottom, fill=fill, outline=banner.color, width=2)
-            c.create_text(WIDTH // 2, top + 27, text=banner.text, fill=banner.color, font=("Segoe UI", 18, "bold"))
+            rect(c, left, top, right, bottom, fill=fill, outline=banner.color, width=2)
+            text(c, WIDTH // 2, top + 27, banner.text, banner.color, 18, True)
         self.draw_ui(c)
 
     def draw_language(self, c):
-        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#14191c", outline="")
+        rect(c, 0, 0, WIDTH, HEIGHT, fill="#14191c")
         self.draw_menu_backdrop(c)
-        c.create_rectangle(0, 0, WIDTH, 118, fill="#0f1416", outline="")
-        c.create_text(WIDTH // 2, 42, text="LANGUAGE / 语言", fill="#f5f1d7", font=("Segoe UI", 30, "bold"))
-        c.create_text(WIDTH // 2, 78, text="Python MOBA Prototype", fill="#9ea898", font=("Segoe UI", 13))
+        rect(c, 0, 0, WIDTH, 118, fill="#0f1416")
+        text(c, WIDTH // 2, 42, "LANGUAGE / 语言", "#f5f1d7", 30, True)
+        text(c, WIDTH // 2, 78, "Python MOBA Prototype", "#9ea898", 13)
 
         self.language_buttons = []
         buttons = [("zh", "中文", "进入中文界面"), ("en", "English", "Use English UI")]
@@ -194,31 +340,19 @@ class RenderingMixin:
             self.language_buttons.append((language, x1, y1, x2, y2))
             active = x1 <= self.mouse_x <= x2 and y1 <= self.mouse_y <= y2
             outline = "#d8cf9b" if active else "#394043"
-            c.create_rectangle(x1, y1, x2, y2, fill="#20282b", outline=outline, width=3)
-            c.create_text((x1 + x2) // 2, y1 + 60, text=title, fill="#f5f1d7", font=("Segoe UI", 25, "bold"))
-            c.create_text((x1 + x2) // 2, y1 + 102, text=subtitle, fill="#aeb8ad", font=("Segoe UI", 12))
+            rect(c, x1, y1, x2, y2, fill="#20282b", outline=outline, width=3)
+            text(c, (x1 + x2) // 2, y1 + 60, title, "#f5f1d7", 25, True)
+            text(c, (x1 + x2) // 2, y1 + 102, subtitle, "#aeb8ad", 12)
 
-        c.create_rectangle(384, 518, 716, 562, fill="#101416", outline="#394043")
-        c.create_text(WIDTH // 2, 540, text="MOBA READY", fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+        rect(c, 384, 518, 716, 562, fill="#101416", outline="#394043")
+        text(c, WIDTH // 2, 540, "MOBA READY", "#d8cf9b", 13, True)
 
     def draw_select(self, c):
-        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#151b1d", outline="")
+        rect(c, 0, 0, WIDTH, HEIGHT, fill="#151b1d")
         self.draw_menu_backdrop(c)
-        c.create_rectangle(0, 0, WIDTH, 95, fill="#101416", outline="")
-        c.create_text(
-            WIDTH // 2,
-            38,
-            text=self.text("hero_title"),
-            fill="#f5f1d7",
-            font=("Segoe UI", 28, "bold"),
-        )
-        c.create_text(
-            WIDTH // 2,
-            72,
-            text=self.text("language_subtitle"),
-            fill="#9ea898",
-            font=("Segoe UI", 13),
-        )
+        rect(c, 0, 0, WIDTH, 95, fill="#101416")
+        text(c, WIDTH // 2, 38, self.text("hero_title"), "#f5f1d7", 28, True)
+        text(c, WIDTH // 2, 72, self.text("language_subtitle"), "#9ea898", 13)
 
         self.hero_cards = []
         hovered_hero_key = None
@@ -241,58 +375,60 @@ class RenderingMixin:
             if active:
                 hovered_hero_key = hero_key
             outline = config["accent"] if active else "#394043"
-            c.create_rectangle(left, top, right, bottom, fill="#20282b", outline=outline, width=3)
-            c.create_rectangle(left, top, right, top + 52, fill="#161c1f", outline="")
+            rect(c, left, top, right, bottom, fill="#20282b", outline=outline, width=3)
+            rect(c, left, top, right, top + 52, fill="#161c1f")
             hotkey = "0" if index == 9 else str(index + 1)
-            c.create_text(left + 16, top + 19, text=f"{hotkey}. {self.hero_name(hero_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 12, "bold"), width=150)
-            c.create_text(left + 16, top + 40, text=self.hero_role(hero_key), fill=config["accent"], anchor="w", font=("Segoe UI", 9, "bold"))
-            self.draw_hero_icon(c, left + 161, top + 88, config)
+            text(c, left + 16, top + 19, f"{hotkey}. {self.hero_name(hero_key)}", "#f5f1d7", 12, True, anchor="w", width=150)
+            text(c, left + 16, top + 40, self.hero_role(hero_key), config["accent"], 9, True, anchor="w")
+            self.draw_hero_icon(c, left + 165, top + 26, config)
 
             stat_y = top + 76
             self.draw_stat(c, left + 16, stat_y, "HP", config["hp"], 760, "#48d06b")
             self.draw_stat(c, left + 16, stat_y + 26, "SPD", config["speed"], 250, "#76b7ff")
             self.draw_stat(c, left + 16, stat_y + 52, "ATK", config["attack_damage"], 45, "#f7d765")
-            c.create_text(left + 16, top + 154, text=f"Q {self.hero_skill(hero_key, 'q')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 8, "bold"), width=164)
-            c.create_text(left + 16, top + 172, text=f"E {self.hero_skill(hero_key, 'e')}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 8, "bold"), width=164)
-            c.create_text(left + 16, top + 190, text=f"R {self.hero_skill(hero_key, 'r')}", fill="#f5d28a", anchor="w", font=("Segoe UI", 8, "bold"), width=164)
+            text(c, left + 16, top + 154, f"Q {self.hero_skill(hero_key, 'q')}", "#cfd6cd", 8, True, anchor="w", width=164)
+            text(c, left + 16, top + 172, f"E {self.hero_skill(hero_key, 'e')}", "#cfd6cd", 8, True, anchor="w", width=164)
+            text(c, left + 16, top + 190, f"R {self.hero_skill(hero_key, 'r')}", "#f5d28a", 8, True, anchor="w", width=164)
             trait = self.hero_skill_traits(hero_key)
             trait_size = 8 if len(trait) > 24 else 9
-            c.create_text(left + 16, top + 208, text=trait, fill=config["accent"], anchor="w", font=("Segoe UI", trait_size, "bold"), width=168)
+            text(c, left + 16, top + 208, trait, config["accent"], trait_size, True, anchor="w", width=168)
 
         if hovered_hero_key:
             accent = HEROES[hovered_hero_key]["accent"]
-            c.create_rectangle(182, 568, 918, 692, fill="#101416", outline=accent, width=2)
-            c.create_text(
+            rect(c, 182, 568, 918, 692, fill="#101416", outline=accent, width=2)
+            text(
+                c,
                 206,
                 588,
-                text=f"{self.hero_name(hovered_hero_key)} / {self.hero_role(hovered_hero_key)}",
-                fill="#f5f1d7",
+                f"{self.hero_name(hovered_hero_key)} / {self.hero_role(hovered_hero_key)}",
+                "#f5f1d7",
+                12,
+                True,
                 anchor="w",
-                font=("Segoe UI", 12, "bold"),
             )
             passive = f"P {self.hero_passive_name(hovered_hero_key)}: {self.hero_passive_detail(hovered_hero_key)}"
-            c.create_text(206, 610, text=passive, fill=accent, anchor="w", font=("Segoe UI", 8, "bold"), width=690)
+            text(c, 206, 610, passive, accent, 8, True, anchor="w", width=690)
             for index, key in enumerate(("q", "e", "r")):
                 detail = f"{key.upper()} {self.hero_skill(hovered_hero_key, key)}: {self.hero_skill_detail(hovered_hero_key, key)}"
-                c.create_text(206, 634 + index * 18, text=detail, fill="#cfd6cd", anchor="w", font=("Segoe UI", 8), width=690)
+                text(c, 206, 634 + index * 18, detail, "#cfd6cd", 8, False, anchor="w", width=690)
         else:
-            c.create_rectangle(358, 610, 742, 656, fill="#101416", outline="#394043")
-            c.create_text(WIDTH // 2, 633, text=self.text("choose_hero"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
+            rect(c, 358, 610, 742, 656, fill="#101416", outline="#394043")
+            text(c, WIDTH // 2, 633, self.text("choose_hero"), "#d8cf9b", 13, True)
 
     def draw_lobby(self, c):
-        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#12181b", outline="")
+        rect(c, 0, 0, WIDTH, HEIGHT, fill="#12181b")
         self.draw_menu_backdrop(c)
-        c.create_rectangle(0, 0, WIDTH, 82, fill="#0d1215", outline="")
-        c.create_text(34, 30, text=self.text("lobby_title"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 25, "bold"))
-        c.create_text(36, 58, text=self.text("lobby_subtitle"), fill="#aeb8ad", anchor="w", font=("Segoe UI", 11))
-        c.create_text(WIDTH - 34, 30, text=self.text("profile"), fill="#f7d765", anchor="e", font=("Segoe UI", 13, "bold"))
-        c.create_text(WIDTH - 34, 58, text=self.text("season"), fill="#cfd6cd", anchor="e", font=("Segoe UI", 12))
+        rect(c, 0, 0, WIDTH, 82, fill="#0d1215")
+        text(c, 34, 30, self.text("lobby_title"), "#f5f1d7", 25, True, anchor="w")
+        text(c, 36, 58, self.text("lobby_subtitle"), "#aeb8ad", 11, False, anchor="w")
+        text(c, WIDTH - 34, 30, self.text("profile"), "#f7d765", 13, True, anchor="e")
+        text(c, WIDTH - 34, 58, self.text("season"), "#cfd6cd", 12, False, anchor="e")
 
-        c.create_rectangle(44, 122, 342, 254, fill="#20282b", outline="#d8cf9b", width=2)
-        c.create_text(72, 154, text=self.text("profile"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
+        rect(c, 44, 122, 342, 254, fill="#20282b", outline="#d8cf9b", width=2)
+        text(c, 72, 154, self.text("profile"), "#f5f1d7", 15, True, anchor="w")
         mode_name = self.mode_configs()[self.selected_mode_key][0] if self.selected_mode_key else self.text("mode_unselected")
-        c.create_text(72, 188, text=mode_name, fill="#78a3ff", anchor="w", font=("Segoe UI", 18, "bold"))
-        c.create_text(72, 222, text=self.text("hero_unselected"), fill="#aeb8ad", anchor="w", font=("Segoe UI", 12))
+        text(c, 72, 188, mode_name, "#78a3ff", 18, True, anchor="w")
+        text(c, 72, 222, self.text("hero_unselected"), "#aeb8ad", 12, False, anchor="w")
 
         self.mode_cards = []
         mode_layout = [
@@ -302,42 +438,42 @@ class RenderingMixin:
         ]
         mode_configs = self.mode_configs()
         for mode_key, left, top, right, bottom in mode_layout:
-            title, color, desc = mode_configs[mode_key]
+            title, mcolor, desc = mode_configs[mode_key]
             selected = self.selected_mode_key == mode_key
             hovered = left <= self.mouse_x <= right and top <= self.mouse_y <= bottom
-            outline = "#f5f1d7" if selected else color if hovered else "#394043"
+            outline = "#f5f1d7" if selected else mcolor if hovered else "#394043"
             fill = "#27343a" if selected else "#20282b"
             self.mode_cards.append((mode_key, left, top, right, bottom))
-            c.create_rectangle(left, top, right, bottom, fill=fill, outline=outline, width=3 if selected else 2)
-            c.create_rectangle(left, top, right, top + 38, fill="#151b1e", outline="")
-            c.create_text(left + 22, top + 20, text=title, fill="#f5f1d7", anchor="w", font=("Segoe UI", 15, "bold"))
-            c.create_text(left + 22, top + 62, text=desc, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=right - left - 42)
-            c.create_text(left + 22, top + 102, text=self.mode_rule_summary(mode_key), fill="#d8cf9b", anchor="w", font=("Segoe UI", 8, "bold"), width=right - left - 42)
-            c.create_line(left + 24, bottom - 22, right - 24, top + 118, fill=color, width=5)
-            c.create_oval(right - 74, bottom - 78, right - 24, bottom - 28, fill=color, outline="")
+            rect(c, left, top, right, bottom, fill=fill, outline=outline, width=3 if selected else 2)
+            rect(c, left, top, right, top + 38, fill="#151b1e")
+            text(c, left + 22, top + 20, title, "#f5f1d7", 15, True, anchor="w")
+            text(c, left + 22, top + 62, desc, "#cfd6cd", 9, False, anchor="w", width=right - left - 42)
+            text(c, left + 22, top + 102, self.mode_rule_summary(mode_key), "#d8cf9b", 8, True, anchor="w", width=right - left - 42)
+            line(c, [left + 24, bottom - 22, right - 24, top + 118], mcolor, 5)
+            oval(c, right - 74, bottom - 78, right - 24, bottom - 28, fill=mcolor)
 
         self.lobby_buttons = [("start", 408, 548, 692, 616)]
         button_fill = "#d8cf9b" if self.selected_mode_key else "#4b4f4b"
         text_fill = "#101416" if self.selected_mode_key else "#aeb8ad"
-        c.create_rectangle(408, 548, 692, 616, fill=button_fill, outline="#f5f1d7", width=3)
-        c.create_text(WIDTH // 2, 582, text=self.text("start_match"), fill=text_fill, font=("Segoe UI", 21, "bold"))
-        c.create_text(WIDTH // 2, 642, text=self.text("mode_prompt"), fill="#aeb8ad", font=("Segoe UI", 12))
+        rect(c, 408, 548, 692, 616, fill=button_fill, outline="#f5f1d7", width=3)
+        text(c, WIDTH // 2, 582, self.text("start_match"), text_fill, 21, True)
+        text(c, WIDTH // 2, 642, self.text("mode_prompt"), "#aeb8ad", 12)
 
     def draw_loading(self, c):
-        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#101416", outline="")
+        rect(c, 0, 0, WIDTH, HEIGHT, fill="#101416")
         self.draw_menu_backdrop(c)
         progress = clamp((self.now() - self.loading_started_at) / 1.15, 0, 1)
         enemy_key = self.enemy_hero.hero_key if self.enemy_hero else "vanguard"
-        c.create_text(WIDTH // 2, 86, text=self.text("loading"), fill="#f5f1d7", font=("Segoe UI", 26, "bold"))
-        c.create_rectangle(184, 154, 456, 514, fill="#20282b", outline=self.player.accent, width=3)
-        c.create_rectangle(644, 154, 916, 514, fill="#20282b", outline="#e84d4f", width=3)
+        text(c, WIDTH // 2, 86, self.text("loading"), "#f5f1d7", 26, True)
+        rect(c, 184, 154, 456, 514, fill="#20282b", outline=self.player.accent, width=3)
+        rect(c, 644, 154, 916, 514, fill="#20282b", outline="#e84d4f", width=3)
         self.draw_hero_portrait(c, 320, 300, HEROES[self.player.hero_key])
         self.draw_hero_portrait(c, 780, 300, HEROES[enemy_key])
-        c.create_text(320, 430, text=self.hero_name(self.player.hero_key), fill="#f5f1d7", font=("Segoe UI", 20, "bold"))
-        c.create_text(780, 430, text=self.text("enemy_prefix", name=self.hero_name(enemy_key)), fill="#f5f1d7", font=("Segoe UI", 20, "bold"))
-        c.create_text(WIDTH // 2, 320, text=self.text("versus"), fill="#d8cf9b", font=("Segoe UI", 28, "bold"))
-        c.create_rectangle(260, 590, 840, 606, fill="#252a2a", outline="")
-        c.create_rectangle(260, 590, 260 + 580 * progress, 606, fill="#d8cf9b", outline="")
+        text(c, 320, 430, self.hero_name(self.player.hero_key), "#f5f1d7", 20, True)
+        text(c, 780, 430, self.text("enemy_prefix", name=self.hero_name(enemy_key)), "#f5f1d7", 20, True)
+        text(c, WIDTH // 2, 320, self.text("versus"), "#d8cf9b", 28, True)
+        rect(c, 260, 590, 840, 606, fill="#252a2a")
+        rect(c, 260, 590, 260 + 580 * progress, 606, fill="#d8cf9b")
 
     def mode_rule_summary(self, mode_key):
         rule = MODE_RULES[mode_key]
@@ -351,81 +487,93 @@ class RenderingMixin:
         )
 
     def draw_menu_backdrop(self, c):
-        for path in self.paths.values():
-            points = []
-            for x, y in path:
-                points.extend([x, y])
-            c.create_line(*points, fill="#263139", width=62, capstyle=tk.ROUND, joinstyle=tk.ROUND)
-            c.create_line(*points, fill="#3f4b4e", width=28, capstyle=tk.ROUND, joinstyle=tk.ROUND)
-        c.create_oval(-90, HEIGHT - 160, 230, HEIGHT + 160, fill="#203f5f", outline="")
-        c.create_oval(WIDTH - 230, -160, WIDTH + 90, 160, fill="#5b2428", outline="")
-        for i in range(18):
-            rng = random.Random(100 + i)
-            x = rng.randint(80, WIDTH - 80)
-            y = rng.randint(130, HEIGHT - 80)
-            c.create_rectangle(x - 18, y - 2, x + 18, y + 2, fill="#2d3939", outline="")
+        if self._menu_backdrop is None:
+            surface = pygame.Surface((WIDTH, HEIGHT))
+            surface.fill("#14191c")
+            for path in self.paths.values():
+                points = []
+                for x, y in path:
+                    points.extend([x, y])
+                line(surface, points, "#263139", 62)
+                line(surface, points, "#3f4b4e", 28)
+            oval(surface, -90, HEIGHT - 160, 230, HEIGHT + 160, fill="#203f5f")
+            oval(surface, WIDTH - 230, -160, WIDTH + 90, 160, fill="#5b2428")
+            for i in range(18):
+                rng = random.Random(100 + i)
+                x = rng.randint(80, WIDTH - 80)
+                y = rng.randint(130, HEIGHT - 80)
+                rect(surface, x - 18, y - 2, x + 18, y + 2, fill="#2d3939")
+            self._menu_backdrop = surface
+        c.blit(self._menu_backdrop, (0, 0))
 
     def draw_hero_portrait(self, c, x, y, config):
         accent = config["accent"]
-        c.create_oval(x - 54, y - 54, x + 54, y + 54, fill="#14191c", outline=accent, width=4)
-        c.create_polygon(x, y - 48, x - 45, y + 38, x + 45, y + 38, fill=accent, outline="#f5f1d7", width=2)
-        c.create_oval(x - 24, y - 20, x + 24, y + 28, fill="#1f282c", outline="")
-        c.create_line(x - 62, y + 68, x + 62, y + 68, fill=accent, width=3)
+        oval(c, x - 54, y - 54, x + 54, y + 54, fill="#14191c", outline=accent, width=4)
+        polygon(c, [x, y - 48, x - 45, y + 38, x + 45, y + 38], fill=accent, outline="#f5f1d7", width=2)
+        oval(c, x - 24, y - 20, x + 24, y + 28, fill="#1f282c")
+        line(c, [x - 62, y + 68, x + 62, y + 68], accent, 3)
 
     def draw_hero_icon(self, c, x, y, config):
         accent = config["accent"]
-        c.create_oval(x - 36, y - 36, x + 36, y + 36, fill="#14191c", outline=accent, width=3)
-        c.create_polygon(x, y - 30, x - 28, y + 24, x + 28, y + 24, fill=accent, outline="#f5f1d7", width=1)
-        c.create_oval(x - 14, y - 10, x + 14, y + 18, fill="#1f282c", outline="")
+        oval(c, x - 22, y - 22, x + 22, y + 22, fill="#14191c", outline=accent, width=3)
+        polygon(c, [x, y - 18, x - 17, y + 14, x + 17, y + 14], fill=accent, outline="#f5f1d7", width=1)
+        oval(c, x - 9, y - 6, x + 9, y + 11, fill="#1f282c")
 
-    def draw_stat(self, c, x, y, label, value, max_value, color):
-        c.create_text(x, y, text=label, fill="#f5f1d7", anchor="w", font=("Segoe UI", 10, "bold"))
-        c.create_rectangle(x + 48, y - 6, x + 224, y + 6, fill="#151b1d", outline="")
+    def draw_stat(self, c, x, y, label, value, max_value, bar_color):
+        text(c, x, y, label, "#f5f1d7", 10, True, anchor="w")
+        rect(c, x + 44, y - 6, x + 164, y + 6, fill="#151b1d")
         pct = clamp(value / max_value, 0, 1)
-        c.create_rectangle(x + 48, y - 6, x + 48 + 176 * pct, y + 6, fill=color, outline="")
-        c.create_text(x + 234, y, text=str(int(value)), fill="#cfd6cd", anchor="w", font=("Segoe UI", 10))
+        rect(c, x + 44, y - 6, x + 44 + 120 * pct, y + 6, fill=bar_color)
+        text(c, x + 174, y, str(int(value)), "#cfd6cd", 10, False, anchor="e")
 
-    def draw_map(self, c):
-        c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#17291f", outline="")
+    def build_map_surface(self):
+        surface = pygame.Surface((WIDTH, HEIGHT))
+        rect(surface, 0, 0, WIDTH, HEIGHT, fill="#17291f")
         river_points = []
         for x, y in RIVER_POLYGON:
             river_points.extend([x, y])
-        c.create_polygon(*river_points, fill="#234a55", outline="#3f737c", width=2)
+        polygon(surface, river_points, fill="#234a55", outline="#3f737c", width=2)
         jungle_zones = [
             (250, 430, 410, 588, "#1e3c2b"),
             (350, 174, 510, 328, "#1f3f34"),
             (690, 112, 850, 270, "#1e3c2b"),
             (590, 374, 750, 530, "#1f3f34"),
         ]
-        for x1, y1, x2, y2, color in jungle_zones:
-            c.create_oval(x1, y1, x2, y2, fill=color, outline="#365640", width=2)
-        c.create_oval(486, 288, 614, 412, fill="#2d3a2a", outline="#d8cf9b", width=2)
+        for x1, y1, x2, y2, zone_color in jungle_zones:
+            oval(surface, x1, y1, x2, y2, fill=zone_color, outline="#365640", width=2)
+        oval(surface, 486, 288, 614, 412, fill="#2d3a2a", outline="#d8cf9b", width=2)
         for left, top, right, bottom in BRUSH_ZONES:
-            c.create_rectangle(left, top, right, bottom, fill="#123722", outline="#3f6b42", width=2)
+            rect(surface, left, top, right, bottom, fill="#123722", outline="#3f6b42", width=2)
             for i in range(6):
                 x = left + 12 + i * ((right - left - 24) / 5)
-                c.create_line(x, bottom - 4, x + 8, top + 8, fill="#5a8b53", width=2)
+                line(surface, [x, bottom - 4, x + 8, top + 8], "#5a8b53", 2, rounded=False)
         for lane, path in self.paths.items():
             points = []
             for x, y in path:
                 points.extend([x, y])
-            c.create_line(*points, fill="#56624d", width=54, capstyle=tk.ROUND, joinstyle=tk.ROUND)
-            c.create_line(*points, fill="#8d8b73", width=34, capstyle=tk.ROUND, joinstyle=tk.ROUND)
-            c.create_line(*points, fill="#c0b988", width=3, dash=(12, 14))
+            line(surface, points, "#56624d", 54)
+            line(surface, points, "#8d8b73", 34)
+            line(surface, points, "#c0b988", 3, dash=(12, 14), rounded=False)
 
-        for _ in range(28):
-            rng = random.Random(_)
+        for i in range(28):
+            rng = random.Random(i)
             x = rng.randint(40, WIDTH - 40)
             y = rng.randint(45, HEIGHT - 45)
-            c.create_oval(x - 8, y - 5, x + 8, y + 5, fill="#203c2d", outline="")
+            oval(surface, x - 8, y - 5, x + 8, y + 5, fill="#203c2d")
 
-        c.create_polygon(0, HEIGHT, 0, 505, 188, HEIGHT, fill="#203f5f", outline="")
-        c.create_polygon(WIDTH, 0, WIDTH, 195, 912, 0, fill="#5b2428", outline="")
+        polygon(surface, [0, HEIGHT, 0, 505, 188, HEIGHT], fill="#203f5f")
+        polygon(surface, [WIDTH, 0, WIDTH, 195, 912, 0], fill="#5b2428")
+        return surface
 
-    def draw_bar(self, c, x, y, width, hp, max_hp, color):
+    def draw_map(self, c):
+        if self._map_surface is None:
+            self._map_surface = self.build_map_surface()
+        c.blit(self._map_surface, (0, 0))
+
+    def draw_bar(self, c, x, y, width, hp, max_hp, bar_color):
         pct = 0 if max_hp <= 0 else clamp(hp / max_hp, 0, 1)
-        c.create_rectangle(x, y, x + width, y + 6, fill="#252a2a", outline="")
-        c.create_rectangle(x, y, x + width * pct, y + 6, fill=color, outline="")
+        rect(c, x, y, x + width, y + 6, fill="#252a2a")
+        rect(c, x, y, x + width * pct, y + 6, fill=bar_color)
 
     def draw_structure_threats(self, c):
         structures = [structure for structure in self.towers + [self.blue_core, self.red_core] if structure.alive]
@@ -442,116 +590,121 @@ class RenderingMixin:
             )
             if not player_in_enemy_range and not is_player_target and not is_visible_enemy_target:
                 continue
-            color = "#ffb0aa" if structure.team == "red" else "#8fd3ff"
+            threat_color = "#ffb0aa" if structure.team == "red" else "#8fd3ff"
             r = structure.attack_range
             width = 2 if is_player_target or is_visible_enemy_target else 1
-            c.create_oval(structure.x - r, structure.y - r, structure.x + r, structure.y + r, outline=color, width=width, dash=(12, 8))
+            oval(c, structure.x - r, structure.y - r, structure.x + r, structure.y + r, outline=threat_color, width=width, dash=(12, 8))
             if not target:
                 continue
-            c.create_line(structure.x, structure.y, target.x, target.y, fill=color, width=2, dash=(8, 5))
+            line(c, [structure.x, structure.y, target.x, target.y], threat_color, 2, dash=(8, 5), rounded=False)
             lock_r = target.radius + 22
-            c.create_oval(target.x - lock_r, target.y - lock_r, target.x + lock_r, target.y + lock_r, outline=color, width=2)
+            oval(c, target.x - lock_r, target.y - lock_r, target.x + lock_r, target.y + lock_r, outline=threat_color, width=2)
             if is_player_target:
-                c.create_text(target.x, target.y - 104, text=self.text("structure_targeted"), fill=color, font=("Segoe UI", 8, "bold"))
+                text(c, target.x, target.y - 104, self.text("structure_targeted"), threat_color, 8, True)
 
     def draw_core(self, c, core):
-        color = team_color(core.team)
-        c.create_oval(
+        core_color = team_color(core.team)
+        oval(
+            c,
             core.x - core.radius,
             core.y - core.radius,
             core.x + core.radius,
             core.y + core.radius,
-            fill=color,
+            fill=core_color,
             outline="#f5f1d7",
             width=3,
         )
-        c.create_oval(core.x - 14, core.y - 14, core.x + 14, core.y + 14, fill="#f5f1d7", outline="")
+        oval(c, core.x - 14, core.y - 14, core.x + 14, core.y + 14, fill="#f5f1d7")
         self.draw_bar(c, core.x - 42, core.y - 50, 84, core.hp, core.max_hp, "#48d06b")
 
     def draw_tower(self, c, tower):
-        color = team_color(tower.team)
+        tower_color = team_color(tower.team)
         x, y, r = tower.x, tower.y, tower.radius
-        c.create_rectangle(x - r, y - r, x + r, y + r, fill="#2e3335", outline=color, width=3)
+        rect(c, x - r, y - r, x + r, y + r, fill="#2e3335", outline=tower_color, width=3)
         if tower.tier == "base":
-            c.create_rectangle(x - r + 5, y - r + 5, x + r - 5, y + r - 5, outline="#f7d765", width=2)
-        c.create_polygon(x, y - r - 16, x - 18, y, x + 18, y, fill=color, outline="#f5f1d7")
+            rect(c, x - r + 5, y - r + 5, x + r - 5, y + r - 5, outline="#f7d765", width=2)
+        polygon(c, [x, y - r - 16, x - 18, y, x + 18, y], fill=tower_color, outline="#f5f1d7")
         self.draw_bar(c, x - 30, y - 38, 60, tower.hp, tower.max_hp, "#48d06b")
 
     def draw_minion(self, c, minion):
-        color = team_color(minion.team)
+        minion_color = team_color(minion.team)
         outline = "#f7d765" if minion.empowered else "#15191b"
         width = 3 if minion.empowered else 2
         if minion.kind == "ranged":
-            c.create_polygon(
-                minion.x,
-                minion.y - minion.radius - 2,
-                minion.x - minion.radius - 1,
-                minion.y + minion.radius,
-                minion.x + minion.radius + 1,
-                minion.y + minion.radius,
-                fill=color,
+            polygon(
+                c,
+                [
+                    minion.x,
+                    minion.y - minion.radius - 2,
+                    minion.x - minion.radius - 1,
+                    minion.y + minion.radius,
+                    minion.x + minion.radius + 1,
+                    minion.y + minion.radius,
+                ],
+                fill=minion_color,
                 outline=outline,
                 width=width,
             )
         elif minion.kind == "siege":
             r = minion.radius
-            c.create_rectangle(minion.x - r - 4, minion.y - r, minion.x + r + 4, minion.y + r, fill=color, outline=outline, width=width)
-            c.create_oval(minion.x - r - 8, minion.y + r - 5, minion.x - r + 2, minion.y + r + 5, fill="#101416", outline="")
-            c.create_oval(minion.x + r - 2, minion.y + r - 5, minion.x + r + 8, minion.y + r + 5, fill="#101416", outline="")
+            rect(c, minion.x - r - 4, minion.y - r, minion.x + r + 4, minion.y + r, fill=minion_color, outline=outline, width=width)
+            oval(c, minion.x - r - 8, minion.y + r - 5, minion.x - r + 2, minion.y + r + 5, fill="#101416")
+            oval(c, minion.x + r - 2, minion.y + r - 5, minion.x + r + 8, minion.y + r + 5, fill="#101416")
         else:
-            c.create_oval(
+            oval(
+                c,
                 minion.x - minion.radius,
                 minion.y - minion.radius,
                 minion.x + minion.radius,
                 minion.y + minion.radius,
-                fill=color,
+                fill=minion_color,
                 outline=outline,
                 width=width,
             )
         if minion.empowered:
-            c.create_oval(minion.x - minion.radius - 8, minion.y - minion.radius - 8, minion.x + minion.radius + 8, minion.y + minion.radius + 8, outline="#f7d765", width=1, dash=(4, 4))
+            oval(c, minion.x - minion.radius - 8, minion.y - minion.radius - 8, minion.x + minion.radius + 8, minion.y + minion.radius + 8, outline="#f7d765", width=1, dash=(4, 4))
         self.draw_bar(c, minion.x - 18, minion.y - minion.radius - 12, 36, minion.hp, minion.max_hp, "#48d06b")
 
     def draw_neutral_monster(self, c, monster):
         if not monster.alive:
             if monster.respawn_at:
                 left = max(0, int(monster.respawn_at - self.now() + 1))
-                c.create_oval(monster.x - 20, monster.y - 20, monster.x + 20, monster.y + 20, fill="#12181b", outline="#394043", width=2)
-                c.create_text(monster.x, monster.y, text=str(left), fill="#d8cf9b", font=("Segoe UI", 10, "bold"))
+                oval(c, monster.x - 20, monster.y - 20, monster.x + 20, monster.y + 20, fill="#12181b", outline="#394043", width=2)
+                text(c, monster.x, monster.y, str(left), "#d8cf9b", 10, True)
             return
         r = monster.radius
-        c.create_oval(monster.x - r - 8, monster.y - r - 8, monster.x + r + 8, monster.y + r + 8, fill="#101416", outline=monster.color, width=2)
-        c.create_oval(monster.x - r, monster.y - r, monster.x + r, monster.y + r, fill=monster.color, outline="#f5f1d7", width=2)
-        c.create_oval(monster.x - 8, monster.y - 8, monster.x + 8, monster.y + 8, fill="#20282b", outline="")
+        oval(c, monster.x - r - 8, monster.y - r - 8, monster.x + r + 8, monster.y + r + 8, fill="#101416", outline=monster.color, width=2)
+        oval(c, monster.x - r, monster.y - r, monster.x + r, monster.y + r, fill=monster.color, outline="#f5f1d7", width=2)
+        oval(c, monster.x - 8, monster.y - 8, monster.x + 8, monster.y + 8, fill="#20282b")
         self.draw_bar(c, monster.x - 34, monster.y - r - 18, 68, monster.hp, monster.max_hp, "#48d06b")
 
     def draw_hero(self, c, hero):
         if not hero.alive:
             x, y = (130, 580) if hero.team == "blue" else (965, 120)
             left = max(0, int(hero.respawn_at - self.now() + 1))
-            c.create_text(x, y - 38, text=str(left), fill="#ffffff", font=("Segoe UI", 18, "bold"))
+            text(c, x, y - 38, str(left), "#ffffff", 18, True)
             return
-        color = team_color(hero.team)
+        hero_color = team_color(hero.team)
         angle = math.atan2(self.mouse_y - hero.y, self.mouse_x - hero.x) if hero.team == "blue" else 0
         pts = []
         for i, spread in enumerate([0, 2.35, -2.35]):
             length = 25 if i == 0 else 18
             pts.extend([hero.x + math.cos(angle + spread) * length, hero.y + math.sin(angle + spread) * length])
-        c.create_polygon(*pts, fill=color, outline=hero.accent, width=3)
-        c.create_oval(hero.x - 10, hero.y - 10, hero.x + 10, hero.y + 10, fill="#1a2024", outline="")
+        polygon(c, pts, fill=hero_color, outline=hero.accent, width=3)
+        oval(c, hero.x - 10, hero.y - 10, hero.x + 10, hero.y + 10, fill="#1a2024")
         if self.hero_in_brush(hero):
-            c.create_oval(hero.x - 30, hero.y - 30, hero.x + 30, hero.y + 30, outline="#76f4a0", width=2, dash=(6, 5))
+            oval(c, hero.x - 30, hero.y - 30, hero.x + 30, hero.y + 30, outline="#76f4a0", width=2, dash=(6, 5))
         if hero.shield > 0:
-            c.create_oval(hero.x - 34, hero.y - 34, hero.x + 34, hero.y + 34, outline="#8fd3ff", width=2)
+            oval(c, hero.x - 34, hero.y - 34, hero.x + 34, hero.y + 34, outline="#8fd3ff", width=2)
         if self.is_stunned(hero):
-            c.create_text(hero.x, hero.y - 82, text="STUN", fill="#f7d765", font=("Segoe UI", 8, "bold"))
+            text(c, hero.x, hero.y - 82, "STUN", "#f7d765", 8, True)
         elif self.now() < hero.slowed_until:
-            c.create_text(hero.x, hero.y - 82, text="SLOW", fill="#9ad7ff", font=("Segoe UI", 8, "bold"))
+            text(c, hero.x, hero.y - 82, "SLOW", "#9ad7ff", 8, True)
         if hero is self.enemy_hero and self.enemy_recalling:
             pct = clamp(self.enemy_recall_elapsed / self.recall_duration, 0, 1)
-            c.create_rectangle(hero.x - 42, hero.y - 96, hero.x + 42, hero.y - 84, fill="#0d1215", outline="#ffb0aa")
-            c.create_rectangle(hero.x - 38, hero.y - 92, hero.x - 38 + 76 * pct, hero.y - 88, fill="#ffb0aa", outline="")
-            c.create_text(hero.x, hero.y - 106, text=self.text("recall_start"), fill="#ffb0aa", font=("Segoe UI", 8, "bold"))
+            rect(c, hero.x - 42, hero.y - 96, hero.x + 42, hero.y - 84, fill="#0d1215", outline="#ffb0aa")
+            rect(c, hero.x - 38, hero.y - 92, hero.x - 38 + 76 * pct, hero.y - 88, fill="#ffb0aa")
+            text(c, hero.x, hero.y - 106, self.text("recall_start"), "#ffb0aa", 8, True)
         self.draw_hero_plate(c, hero)
 
     def draw_hero_plate(self, c, hero):
@@ -560,33 +713,33 @@ class RenderingMixin:
             display_name = self.text("enemy_prefix", name=display_name)
         x = hero.x
         y = hero.y - 58
-        c.create_rectangle(x - 54, y - 12, x + 54, y + 23, fill="#101416", outline="#2f383b")
-        c.create_oval(x - 61, y - 14, x - 31, y + 16, outline=hero.accent, width=2)
-        c.create_oval(x - 58, y - 11, x - 34, y + 13, fill=hero.accent, outline="#f5f1d7", width=1)
-        c.create_text(x - 46, y + 1, text=str(hero.level), fill="#111719", font=("Segoe UI", 10, "bold"))
+        rect(c, x - 54, y - 12, x + 54, y + 23, fill="#101416", outline="#2f383b")
+        oval(c, x - 61, y - 14, x - 31, y + 16, outline=hero.accent, width=2)
+        oval(c, x - 58, y - 11, x - 34, y + 13, fill=hero.accent, outline="#f5f1d7", width=1)
+        text(c, x - 46, y + 1, str(hero.level), "#111719", 10, True)
         name_size = 8 if len(display_name) > 10 else 9
-        c.create_text(x - 28, y - 1, text=display_name, fill="#f5f1d7", anchor="w", font=("Segoe UI", name_size, "bold"))
+        text(c, x - 28, y - 1, display_name, "#f5f1d7", name_size, True, anchor="w")
         self.draw_bar(c, x - 32, y + 14, 74, hero.hp, hero.max_hp, "#48d06b")
 
     def draw_ui(self, c):
         self.skill_upgrade_buttons = []
         self.utility_buttons = []
         self.skill_detail_buttons = []
-        c.create_rectangle(0, 0, WIDTH, 50, fill="#0d1215", outline="")
-        c.create_rectangle(398, 7, 702, 43, fill="#151b1e", outline="#394043", width=2)
-        c.create_text(438, 25, text=str(self.player.kills), fill="#78a3ff", font=("Segoe UI", 16, "bold"))
-        c.create_text(WIDTH // 2, 25, text=self.format_time(self.match_time), fill="#f5f1d7", font=("Segoe UI", 14, "bold"))
-        c.create_text(662, 25, text=str(self.enemy_hero.kills), fill="#ff7b7c", font=("Segoe UI", 16, "bold"))
-        c.create_text(24, 25, text=self.hero_name(self.player.hero_key), fill="#78a3ff", anchor="w", font=("Segoe UI", 13, "bold"))
-        c.create_text(164, 25, text=f"{self.text('level')} {self.player.level}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13))
-        c.create_text(260, 25, text=f"G {self.player.gold}", fill="#f7d765", anchor="w", font=("Segoe UI", 13))
+        rect(c, 0, 0, WIDTH, 50, fill="#0d1215")
+        rect(c, 398, 7, 702, 43, fill="#151b1e", outline="#394043", width=2)
+        text(c, 438, 25, str(self.player.kills), "#78a3ff", 16, True)
+        text(c, WIDTH // 2, 25, self.format_time(self.match_time), "#f5f1d7", 14, True)
+        text(c, 662, 25, str(self.enemy_hero.kills), "#ff7b7c", 16, True)
+        text(c, 24, 25, self.hero_name(self.player.hero_key), "#78a3ff", 13, True, anchor="w")
+        text(c, 164, 25, f"{self.text('level')} {self.player.level}", "#f5f1d7", 13, False, anchor="w")
+        text(c, 260, 25, f"G {self.player.gold}", "#f7d765", 13, False, anchor="w")
         xp_pct = clamp(self.player.xp / self.player.next_xp, 0, 1)
-        c.create_rectangle(24, 43, 300, 47, fill="#252a2a", outline="")
-        c.create_rectangle(24, 43, 24 + 276 * xp_pct, 47, fill="#b38cff", outline="")
+        rect(c, 24, 43, 300, 47, fill="#252a2a")
+        rect(c, 24, 43, 24 + 276 * xp_pct, 47, fill="#b38cff")
         if self.player.skill_points > 0:
-            c.create_text(720, 25, text=f"{self.text('skill_points')} {self.player.skill_points}", fill="#f7d765", anchor="w", font=("Segoe UI", 12, "bold"))
+            text(c, 720, 25, f"{self.text('skill_points')} {self.player.skill_points}", "#f7d765", 12, True, anchor="w")
         enemy_text = f"{self.hero_name(self.enemy_hero.hero_key)}  {self.text('level')} {self.enemy_hero.level}  G {self.enemy_hero.gold}"
-        c.create_text(WIDTH - 24, 23, text=enemy_text, fill="#ff7b7c", anchor="e", font=("Segoe UI", 12, "bold"))
+        text(c, WIDTH - 24, 23, enemy_text, "#ff7b7c", 12, True, anchor="e")
 
         self.draw_minimap(c)
         self.draw_virtual_stick(c)
@@ -599,8 +752,8 @@ class RenderingMixin:
         self.draw_skill_tooltip(c)
 
         if self.now() < self.message_until:
-            c.create_rectangle(386, 54, 714, 80, fill="#101416", outline="#394043")
-            c.create_text(WIDTH // 2, 67, text=self.message, fill="#f5f1d7", font=("Segoe UI", 11, "bold"))
+            rect(c, 386, 54, 714, 80, fill="#101416", outline="#394043")
+            text(c, WIDTH // 2, 67, self.message, "#f5f1d7", 11, True)
 
         if self.recalling:
             self.draw_recall_indicator(c)
@@ -623,10 +776,10 @@ class RenderingMixin:
 
     def draw_virtual_stick(self, c):
         x, y = 92, HEIGHT - 92
-        c.create_oval(x - 62, y - 62, x + 62, y + 62, fill="#0d1215", outline="#394043", width=2)
-        c.create_oval(x - 28, y - 28, x + 28, y + 28, fill="#1f2a2e", outline="#d8cf9b", width=2)
-        c.create_line(x - 50, y, x + 50, y, fill="#394043", width=2)
-        c.create_line(x, y - 50, x, y + 50, fill="#394043", width=2)
+        oval(c, x - 62, y - 62, x + 62, y + 62, fill="#0d1215", outline="#394043", width=2)
+        oval(c, x - 28, y - 28, x + 28, y + 28, fill="#1f2a2e", outline="#d8cf9b", width=2)
+        line(c, [x - 50, y, x + 50, y], "#394043", 2, rounded=False)
+        line(c, [x, y - 50, x, y + 50], "#394043", 2, rounded=False)
 
     def draw_utility_row(self, c):
         y = HEIGHT - 38
@@ -640,43 +793,43 @@ class RenderingMixin:
             self.utility_buttons.append((action, x - size // 2 - 4, y - size // 2 - 4, x + size // 2 + 4, y + size // 2 + 4))
             self.draw_skill(c, x, y, label, ready_at, full_cd, size)
             if action == "b" and self.recalling:
-                c.create_oval(x - 23, y - 23, x + 23, y + 23, outline="#d8cf9b", width=2, dash=(5, 4))
+                oval(c, x - 23, y - 23, x + 23, y + 23, outline="#d8cf9b", width=2, dash=(5, 4))
 
     def draw_recall_indicator(self, c):
         pct = clamp(self.recall_elapsed / self.recall_duration, 0, 1)
-        c.create_rectangle(372, 60, 728, 96, fill="#0d1215", outline="#d8cf9b", width=2)
-        c.create_text(WIDTH // 2, 71, text=self.text("recall_start"), fill="#d8cf9b", font=("Segoe UI", 13, "bold"))
-        c.create_rectangle(432, 78, 668, 88, fill="#252a2a", outline="")
-        c.create_rectangle(432, 78, 432 + 236 * pct, 88, fill="#d8cf9b", outline="")
-        c.create_text(WIDTH // 2, 103, text=f"{int((1 - pct) * self.recall_duration) + 1}", fill="#ffffff", font=("Segoe UI", 8, "bold"))
+        rect(c, 372, 60, 728, 96, fill="#0d1215", outline="#d8cf9b", width=2)
+        text(c, WIDTH // 2, 71, self.text("recall_start"), "#d8cf9b", 13, True)
+        rect(c, 432, 78, 668, 88, fill="#252a2a")
+        rect(c, 432, 78, 432 + 236 * pct, 88, fill="#d8cf9b")
+        text(c, WIDTH // 2, 103, f"{int((1 - pct) * self.recall_duration) + 1}", "#ffffff", 8, True)
         if self.player.alive:
             x, y = self.player.x, self.player.y - 84
-            c.create_rectangle(x - 46, y - 10, x + 46, y + 8, fill="#0d1215", outline="#d8cf9b")
-            c.create_rectangle(x - 42, y - 6, x - 42 + 84 * pct, y + 4, fill="#d8cf9b", outline="")
+            rect(c, x - 46, y - 10, x + 46, y + 8, fill="#0d1215", outline="#d8cf9b")
+            rect(c, x - 42, y - 6, x - 42 + 84 * pct, y + 4, fill="#d8cf9b")
 
     def draw_minimap(self, c):
         left, top = 18, 64
         w, h = 178, 122
-        c.create_rectangle(left, top, left + w, top + h, fill="#0d1215", outline="#d8cf9b", width=2)
+        rect(c, left, top, left + w, top + h, fill="#0d1215", outline="#d8cf9b", width=2)
         for path in self.paths.values():
             points = []
             for x, y in path:
                 points.extend([left + x / WIDTH * w, top + y / HEIGHT * h])
-            c.create_line(*points, fill="#8d8b73", width=4, capstyle=tk.ROUND, joinstyle=tk.ROUND)
+            line(c, points, "#8d8b73", 4)
         for tower in self.towers:
             if tower.alive:
                 self.draw_minimap_dot(c, left, top, w, h, tower.x, tower.y, team_color(tower.team), 3)
         for minion in self.minions[::2]:
             self.draw_minimap_dot(c, left, top, w, h, minion.x, minion.y, team_color(minion.team), 2)
         for monster in self.neutral_monsters:
-            color = monster.color if monster.alive else "#4a4f4d"
+            dot_color = monster.color if monster.alive else "#4a4f4d"
             radius = 5 if monster.camp_key == "ancient_guard" else 3
-            self.draw_minimap_dot(c, left, top, w, h, monster.x, monster.y, color, radius)
+            self.draw_minimap_dot(c, left, top, w, h, monster.x, monster.y, dot_color, radius)
             if not monster.alive and monster.respawn_at:
                 mx = left + monster.x / WIDTH * w
                 my = top + monster.y / HEIGHT * h
                 remaining = max(0, int(monster.respawn_at - self.now() + 1))
-                c.create_text(mx, my - 8, text=str(remaining), fill="#d8cf9b", font=("Segoe UI", 6, "bold"))
+                text(c, mx, my - 8, str(remaining), "#d8cf9b", 6, True)
         self.draw_minimap_dot(c, left, top, w, h, self.blue_core.x, self.blue_core.y, "#78a3ff", 5)
         self.draw_minimap_dot(c, left, top, w, h, self.red_core.x, self.red_core.y, "#ff7b7c", 5)
         if self.player.alive:
@@ -684,10 +837,10 @@ class RenderingMixin:
         if self.enemy_hero.alive and self.hero_visible_to_player(self.enemy_hero):
             self.draw_minimap_dot(c, left, top, w, h, self.enemy_hero.x, self.enemy_hero.y, "#ffb0aa", 4)
 
-    def draw_minimap_dot(self, c, left, top, w, h, x, y, color, r):
+    def draw_minimap_dot(self, c, left, top, w, h, x, y, dot_color, r):
         mx = left + x / WIDTH * w
         my = top + y / HEIGHT * h
-        c.create_oval(mx - r, my - r, mx + r, my + r, fill=color, outline="")
+        oval(c, mx - r, my - r, mx + r, my + r, fill=dot_color)
 
     def draw_locked_target(self, c):
         target = self.valid_locked_target(self.player)
@@ -696,23 +849,23 @@ class RenderingMixin:
         if isinstance(target, Hero) and not self.hero_visible_to_player(target):
             return
         r = target.radius + 16
-        c.create_oval(target.x - r, target.y - r, target.x + r, target.y + r, outline="#f7d765", width=2, dash=(7, 5))
-        c.create_line(target.x - r - 8, target.y, target.x - r + 6, target.y, fill="#f7d765", width=2)
-        c.create_line(target.x + r - 6, target.y, target.x + r + 8, target.y, fill="#f7d765", width=2)
-        c.create_line(target.x, target.y - r - 8, target.x, target.y - r + 6, fill="#f7d765", width=2)
-        c.create_line(target.x, target.y + r - 6, target.x, target.y + r + 8, fill="#f7d765", width=2)
+        oval(c, target.x - r, target.y - r, target.x + r, target.y + r, outline="#f7d765", width=2, dash=(7, 5))
+        line(c, [target.x - r - 8, target.y, target.x - r + 6, target.y], "#f7d765", 2, rounded=False)
+        line(c, [target.x + r - 6, target.y, target.x + r + 8, target.y], "#f7d765", 2, rounded=False)
+        line(c, [target.x, target.y - r - 8, target.x, target.y - r + 6], "#f7d765", 2, rounded=False)
+        line(c, [target.x, target.y + r - 6, target.x, target.y + r + 8], "#f7d765", 2, rounded=False)
 
     def draw_shop(self, c):
         self.shop_cards = []
         self.recommended_buy_button = None
         left = WIDTH - 404
         top = HEIGHT - 356
-        c.create_rectangle(left, top, WIDTH - 24, HEIGHT - 84, fill="#111719", outline="#d8cf9b", width=2)
-        c.create_text(left + 18, top + 20, text=self.text("shop"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        rect(c, left, top, WIDTH - 24, HEIGHT - 84, fill="#111719", outline="#d8cf9b", width=2)
+        text(c, left + 18, top + 20, self.text("shop"), "#f5f1d7", 13, True, anchor="w")
         bx1, by1, bx2, by2 = WIDTH - 158, top + 9, WIDTH - 38, top + 33
         self.recommended_buy_button = (bx1, by1, bx2, by2)
-        c.create_rectangle(bx1, by1, bx2, by2, fill="#20282b", outline="#f7d765", width=2)
-        c.create_text((bx1 + bx2) / 2, (by1 + by2) / 2, text=self.text("buy_recommended"), fill="#f5f1d7", font=("Segoe UI", 9, "bold"))
+        rect(c, bx1, by1, bx2, by2, fill="#20282b", outline="#f7d765", width=2)
+        text(c, (bx1 + bx2) / 2, (by1 + by2) / 2, self.text("buy_recommended"), "#f5f1d7", 9, True)
         recommended = set(HERO_RECOMMENDED_ITEMS.get(self.player.hero_key, []))
         for index, (item_key, item) in enumerate(ITEMS.items()):
             col = index % 3
@@ -729,13 +882,13 @@ class RenderingMixin:
             locked = missing_item is not None
             fill = "#20282b" if not maxed and not locked else "#181d1f"
             outline = "#f7d765" if item_key in recommended and not maxed else item["color"]
-            c.create_rectangle(x1, y1, x2, y2, fill=fill, outline=outline, width=2)
-            c.create_rectangle(x1 + 8, y1 + 10, x1 + 24, y1 + 26, fill=item["color"], outline="")
-            c.create_text(x1 + 30, y1 + 13, text=self.item_name(item_key), fill="#f5f1d7", anchor="w", font=("Segoe UI", 8, "bold"))
-            c.create_text(x1 + 30, y1 + 28, text=self.item_stat_text(item), fill="#cfd6cd", anchor="w", font=("Segoe UI", 7))
+            rect(c, x1, y1, x2, y2, fill=fill, outline=outline, width=2)
+            rect(c, x1 + 8, y1 + 10, x1 + 24, y1 + 26, fill=item["color"])
+            text(c, x1 + 30, y1 + 13, self.item_name(item_key), "#f5f1d7", 8, True, anchor="w")
+            text(c, x1 + 30, y1 + 28, self.item_stat_text(item), "#cfd6cd", 7, False, anchor="w")
             price = "MAX" if maxed else self.item_name(missing_item) if locked else f"G {cost}"
-            c.create_text(x1 + 8, y2 - 6, text=f"Lv {current_level}/{item['max_stacks']}", fill="#9ea898", anchor="w", font=("Segoe UI", 7))
-            c.create_text(x2 - 6, y2 - 6, text=price, fill="#f7d765", anchor="e", font=("Segoe UI", 8, "bold"))
+            text(c, x1 + 8, y2 - 6, f"Lv {current_level}/{item['max_stacks']}", "#9ea898", 7, False, anchor="w")
+            text(c, x2 - 6, y2 - 6, price, "#f7d765", 8, True, anchor="e")
         self.draw_shop_detail(c)
 
     def item_stat_text(self, item):
@@ -784,19 +937,19 @@ class RenderingMixin:
         top = HEIGHT - 356
         right = left + 216
         bottom = top + 134
-        c.create_rectangle(left, top, right, bottom, fill="#101416", outline=item["color"], width=2)
-        c.create_text(left + 14, top + 18, text=self.item_name(hovered), fill="#f5f1d7", anchor="w", font=("Segoe UI", 12, "bold"))
-        c.create_text(left + 14, top + 44, text=f"{self.text('equipment_stats')}: {self.full_item_stat_text(item)}", fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=188)
+        rect(c, left, top, right, bottom, fill="#101416", outline=item["color"], width=2)
+        text(c, left + 14, top + 18, self.item_name(hovered), "#f5f1d7", 12, True, anchor="w")
+        text(c, left + 14, top + 44, f"{self.text('equipment_stats')}: {self.full_item_stat_text(item)}", "#cfd6cd", 9, False, anchor="w", width=188)
         y = top + 78
         missing_item = self.missing_item_requirement(self.player, item)
         requirement_text = self.item_requirement_text(item)
         if requirement_text:
-            color = "#ffb0aa" if missing_item else "#d8cf9b"
-            c.create_text(left + 14, y, text=self.text("equipment_requires", item=requirement_text), fill=color, anchor="w", font=("Segoe UI", 9, "bold"), width=188)
+            req_color = "#ffb0aa" if missing_item else "#d8cf9b"
+            text(c, left + 14, y, self.text("equipment_requires", item=requirement_text), req_color, 9, True, anchor="w", width=188)
             y += 22
         passive_key = item.get("passive")
         if passive_key:
-            c.create_text(left + 14, y, text=f"{self.text('equipment_passive')}: {self.text(f'passive_{passive_key}')}", fill="#f7d765", anchor="w", font=("Segoe UI", 9, "bold"), width=188)
+            text(c, left + 14, y, f"{self.text('equipment_passive')}: {self.text(f'passive_{passive_key}')}", "#f7d765", 9, True, anchor="w", width=188)
 
     def full_item_stat_text(self, item):
         parts = []
@@ -840,27 +993,27 @@ class RenderingMixin:
         top = 112
         right = WIDTH - 218
         bottom = 402
-        c.create_rectangle(left, top, right, bottom, fill="#0d1215", outline="#d8cf9b", width=2)
-        c.create_rectangle(left, top, right, top + 48, fill="#151b1e", outline="")
-        c.create_text(WIDTH // 2, top + 24, text=self.text("scoreboard"), fill="#f5f1d7", font=("Segoe UI", 18, "bold"))
+        rect(c, left, top, right, bottom, fill="#0d1215", outline="#d8cf9b", width=2)
+        rect(c, left, top, right, top + 48, fill="#151b1e")
+        text(c, WIDTH // 2, top + 24, self.text("scoreboard"), "#f5f1d7", 18, True)
         self.draw_scoreboard_row(c, self.player, left + 28, top + 78, right - left - 56, "#78a3ff")
         self.draw_scoreboard_row(c, self.enemy_hero, left + 28, top + 188, right - left - 56, "#ff7b7c")
 
-    def draw_scoreboard_row(self, c, hero, left, top, width, color):
-        c.create_rectangle(left, top, left + width, top + 82, fill="#111719", outline=color, width=2)
-        c.create_oval(left + 18, top + 18, left + 58, top + 58, fill=hero.accent, outline="#f5f1d7", width=2)
-        c.create_text(left + 38, top + 38, text=str(hero.level), fill="#101416", font=("Segoe UI", 14, "bold"))
+    def draw_scoreboard_row(self, c, hero, left, top, width, row_color):
+        rect(c, left, top, left + width, top + 82, fill="#111719", outline=row_color, width=2)
+        oval(c, left + 18, top + 18, left + 58, top + 58, fill=hero.accent, outline="#f5f1d7", width=2)
+        text(c, left + 38, top + 38, str(hero.level), "#101416", 14, True)
         name = self.hero_name(hero.hero_key)
         if hero.team == "red":
             name = self.text("enemy_prefix", name=name)
-        c.create_text(left + 74, top + 20, text=f"{name} / {self.hero_role(hero.hero_key)}", fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        text(c, left + 74, top + 20, f"{name} / {self.hero_role(hero.hero_key)}", "#f5f1d7", 13, True, anchor="w")
         stat_text = f"{self.text('kills')} {hero.kills}   {self.text('deaths')} {hero.deaths}   {self.text('gold')} {hero.gold}"
-        c.create_text(left + 74, top + 48, text=stat_text, fill="#cfd6cd", anchor="w", font=("Segoe UI", 11))
+        text(c, left + 74, top + 48, stat_text, "#cfd6cd", 11, False, anchor="w")
 
         equipment_text = self.equipment_summary(hero)
         skill_text = " / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r"))
-        c.create_text(left + width - 22, top + 24, text=f"{self.text('equipment')}: {equipment_text}", fill="#d8cf9b", anchor="e", font=("Segoe UI", 10))
-        c.create_text(left + width - 22, top + 54, text=skill_text, fill="#f7d765", anchor="e", font=("Segoe UI", 11, "bold"))
+        text(c, left + width - 22, top + 24, f"{self.text('equipment')}: {equipment_text}", "#d8cf9b", 10, False, anchor="e")
+        text(c, left + width - 22, top + 54, skill_text, "#f7d765", 11, True, anchor="e")
 
     def equipment_summary(self, hero):
         purchased = [f"{self.item_name(key)} {level}" for key, level in hero.equipment.items() if level > 0]
@@ -878,12 +1031,12 @@ class RenderingMixin:
         top = 116
         right = WIDTH - 260
         bottom = 586
-        c.create_rectangle(left, top, right, bottom, fill=overlay, outline="#f5f1d7", width=2)
-        c.create_text(WIDTH // 2, top + 34, text=self.text("settlement"), fill="#d8cf9b", font=("Segoe UI", 15, "bold"))
+        rect(c, left, top, right, bottom, fill=overlay, outline="#f5f1d7", width=2)
+        text(c, WIDTH // 2, top + 34, self.text("settlement"), "#d8cf9b", 15, True)
         result_text = self.text("result_win") if blue_won else self.text("result_loss")
         result_color = "#78a3ff" if blue_won else "#ff7b7c"
-        c.create_text(WIDTH // 2, top + 84, text=result_text, fill=result_color, font=("Segoe UI", 36, "bold"))
-        c.create_text(WIDTH // 2, top + 124, text=f"{self.text('duration')} {self.format_time(self.match_time)}", fill="#cfd6cd", font=("Segoe UI", 12))
+        text(c, WIDTH // 2, top + 84, result_text, result_color, 36, True)
+        text(c, WIDTH // 2, top + 124, f"{self.text('duration')} {self.format_time(self.match_time)}", "#cfd6cd", 12)
 
         self.draw_settlement_stats(c, self.player, left + 42, top + 162, "#78a3ff")
         self.draw_settlement_stats(c, self.enemy_hero, WIDTH // 2 + 16, top + 162, "#ff7b7c")
@@ -891,15 +1044,15 @@ class RenderingMixin:
         self.draw_settlement_button(c, "rematch", WIDTH // 2 - 172, bottom - 72, 150, 44, "#d8cf9b")
         self.draw_settlement_button(c, "lobby", WIDTH // 2 + 22, bottom - 72, 150, 44, "#78a3ff")
 
-    def draw_settlement_stats(self, c, hero, left, top, color):
+    def draw_settlement_stats(self, c, hero, left, top, panel_color):
         width = 238
         height = 206
         enemy_towers_destroyed = sum(1 for tower in self.towers if tower.team != hero.team and not tower.alive)
-        c.create_rectangle(left, top, left + width, top + height, fill="#101416", outline=color, width=2)
+        rect(c, left, top, left + width, top + height, fill="#101416", outline=panel_color, width=2)
         name = self.hero_name(hero.hero_key)
         if hero.team == "red":
             name = self.text("enemy_prefix", name=name)
-        c.create_text(left + 18, top + 24, text=name, fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
+        text(c, left + 18, top + 24, name, "#f5f1d7", 13, True, anchor="w")
         stats = self.match_stats[hero.team]
         left_lines = [
             f"{self.text('level')} {hero.level}",
@@ -917,24 +1070,26 @@ class RenderingMixin:
             f"{self.text('healing')} {int(stats['healing'])}",
             f"{self.text('shielding')} {int(stats['shielding'])}",
         ]
-        for index, line in enumerate(left_lines):
-            c.create_text(left + 18, top + 52 + index * 22, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9))
-        for index, line in enumerate(right_lines):
-            c.create_text(left + 124, top + 52 + index * 22, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9))
-        c.create_text(
+        for index, line_text in enumerate(left_lines):
+            text(c, left + 18, top + 52 + index * 22, line_text, "#cfd6cd", 9, False, anchor="w")
+        for index, line_text in enumerate(right_lines):
+            text(c, left + 124, top + 52 + index * 22, line_text, "#cfd6cd", 9, False, anchor="w")
+        text(
+            c,
             left + 18,
             top + 188,
-            text=" / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r")),
-            fill="#f7d765",
+            " / ".join(f"{key.upper()} Lv{hero.skill_levels.get(key, 0)}" for key in ("q", "e", "r")),
+            "#f7d765",
+            9,
+            True,
             anchor="w",
-            font=("Segoe UI", 9, "bold"),
         )
 
-    def draw_settlement_button(self, c, action, x, y, width, height, color):
+    def draw_settlement_button(self, c, action, x, y, width, height, button_color):
         self.settlement_buttons.append((action, x, y, x + width, y + height))
         label = self.text("rematch") if action == "rematch" else self.text("back_lobby")
-        c.create_rectangle(x, y, x + width, y + height, fill="#111719", outline=color, width=2)
-        c.create_text(x + width / 2, y + height / 2, text=label, fill="#f5f1d7", font=("Segoe UI", 12, "bold"))
+        rect(c, x, y, x + width, y + height, fill="#111719", outline=button_color, width=2)
+        text(c, x + width / 2, y + height / 2, label, "#f5f1d7", 12, True)
 
     def draw_skill(self, c, x, y, label, ready_at, full_cd, size, skill_key=None):
         current = self.now()
@@ -942,37 +1097,29 @@ class RenderingMixin:
         ready = current >= ready_at and not locked
         fill = "#26313a" if ready else "#171b20"
         r = size // 2
-        c.create_oval(x - r - 4, y - r - 4, x + r + 4, y + r + 4, fill="#0d1215", outline="#394043", width=2)
-        c.create_oval(x - r, y - r, x + r, y + r, fill=fill, outline="#d8cf9b", width=2)
+        oval(c, x - r - 4, y - r - 4, x + r + 4, y + r + 4, fill="#0d1215", outline="#394043", width=2)
+        oval(c, x - r, y - r, x + r, y + r, fill=fill, outline="#d8cf9b", width=2)
+        left = 0
         if not ready and not locked:
             left = ready_at - current
             pct = clamp(left / full_cd, 0, 1)
-            c.create_arc(
-                x - r,
-                y - r,
-                x + r,
-                y + r,
-                start=90,
-                extent=-360 * pct,
-                fill="#000000",
-                outline="",
-            )
-        c.create_text(x, y, text=label, fill="#f5f1d7", font=("Segoe UI", 15, "bold"))
+            pie(c, x, y, r, pct)
+        text(c, x, y, label, "#f5f1d7", 15, True)
         if locked:
-            c.create_text(x, y + 25, text=self.text("locked"), fill="#ffb0aa", font=("Segoe UI", 8, "bold"))
+            text(c, x, y + 25, self.text("locked"), "#ffb0aa", 8, True)
         elif not ready:
-            c.create_text(x, y + 25, text=f"{left:.1f}", fill="#ffffff", font=("Segoe UI", 8, "bold"))
+            text(c, x, y + 25, f"{left:.1f}", "#ffffff", 8, True)
         if skill_key is not None:
             self.skill_detail_buttons.append((skill_key, x - r - 8, y - r - 8, x + r + 8, y + r + 28))
             level = self.player.skill_levels.get(skill_key, 0)
             max_level = SKILL_MAX_LEVELS[skill_key]
-            c.create_text(x, y + r + 18, text=f"Lv {level}/{max_level}", fill="#cfd6cd", font=("Segoe UI", 8, "bold"))
+            text(c, x, y + r + 18, f"Lv {level}/{max_level}", "#cfd6cd", 8, True)
             if self.can_upgrade_skill(self.player, skill_key):
                 px = x + r - 5
                 py = y - r - 17
                 self.skill_upgrade_buttons.append((skill_key, px - 10, py - 10, px + 10, py + 10))
-                c.create_oval(px - 10, py - 10, px + 10, py + 10, fill="#f7d765", outline="#101416", width=2)
-                c.create_text(px, py - 1, text="+", fill="#101416", font=("Segoe UI", 13, "bold"))
+                oval(c, px - 10, py - 10, px + 10, py + 10, fill="#f7d765", outline="#101416", width=2)
+                text(c, px, py - 1, "+", "#101416", 13, True)
 
     def draw_skill_tooltip(self, c):
         hovered = None
@@ -994,20 +1141,19 @@ class RenderingMixin:
         passive = f"P {self.hero_passive_name(self.player.hero_key)}: {self.hero_passive_detail(self.player.hero_key)}"
         left = WIDTH - 392
         top = HEIGHT - 316
-        c.create_rectangle(left, top, left + 344, top + 116, fill="#101416", outline=self.player.accent, width=2)
-        c.create_text(left + 14, top + 20, text=title, fill="#f5f1d7", anchor="w", font=("Segoe UI", 11, "bold"))
-        c.create_text(left + 14, top + 52, text=body, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=314)
-        c.create_text(left + 14, top + 92, text=passive, fill=self.player.accent, anchor="w", font=("Segoe UI", 8, "bold"), width=314)
+        rect(c, left, top, left + 344, top + 116, fill="#101416", outline=self.player.accent, width=2)
+        text(c, left + 14, top + 20, title, "#f5f1d7", 11, True, anchor="w")
+        text(c, left + 14, top + 52, body, "#cfd6cd", 9, False, anchor="w", width=314)
+        text(c, left + 14, top + 92, passive, self.player.accent, 8, True, anchor="w", width=314)
 
     def draw_tutorial(self, c):
         left, top, right, bottom = 214, 88, 592, 244
-        c.create_rectangle(left, top, right, bottom, fill="#101416", outline="#d8cf9b", width=2)
-        c.create_text(left + 18, top + 22, text=self.text("tutorial_title"), fill="#f5f1d7", anchor="w", font=("Segoe UI", 13, "bold"))
-        for index, line in enumerate(self.text("tutorial_lines")):
-            c.create_text(left + 20, top + 52 + index * 22, text=line, fill="#cfd6cd", anchor="w", font=("Segoe UI", 9), width=338)
+        rect(c, left, top, right, bottom, fill="#101416", outline="#d8cf9b", width=2)
+        text(c, left + 18, top + 22, self.text("tutorial_title"), "#f5f1d7", 13, True, anchor="w")
+        for index, tutorial_line in enumerate(self.text("tutorial_lines")):
+            text(c, left + 20, top + 52 + index * 22, tutorial_line, "#cfd6cd", 9, False, anchor="w", width=338)
         bx1, by1, bx2, by2 = left + 18, bottom - 30, right - 18, bottom - 8
         self.tutorial_close_button = (bx1, by1, bx2, by2)
         hovered = bx1 <= self.mouse_x <= bx2 and by1 <= self.mouse_y <= by2
-        c.create_rectangle(bx1, by1, bx2, by2, fill="#27343a" if hovered else "#1b2326", outline="#394043")
-        c.create_text((bx1 + bx2) / 2, (by1 + by2) / 2, text=self.text("tutorial_close"), fill="#d8cf9b", font=("Segoe UI", 9, "bold"))
-
+        rect(c, bx1, by1, bx2, by2, fill="#27343a" if hovered else "#1b2326", outline="#394043")
+        text(c, (bx1 + bx2) / 2, (by1 + by2) / 2, self.text("tutorial_close"), "#d8cf9b", 9, True)

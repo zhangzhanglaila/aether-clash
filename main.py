@@ -1,9 +1,10 @@
 import argparse
 import time
-import tkinter as tk
+
+import pygame
+
 from game_data import (
     Core,
-    FPS_MS,
     HEROES,
     HEIGHT,
     Hero,
@@ -36,17 +37,11 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         remote_hero_key="ranger",
         language="zh",
     ):
-        self.root = tk.Tk()
-        self.root.title("Aether Clash")
-        self.root.resizable(False, False)
-        self.canvas = tk.Canvas(
-            self.root,
-            width=WIDTH,
-            height=HEIGHT,
-            bg="#18261d",
-            highlightthickness=0,
-        )
-        self.canvas.pack()
+        pygame.init()
+        pygame.display.set_caption("Aether Clash")
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.clock = pygame.time.Clock()
+        self.running = True
         self.keys = set()
         self.mouse_x = WIDTH // 2
         self.mouse_y = HEIGHT // 2
@@ -72,6 +67,9 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.tutorial_close_button = None
         self.skill_detail_buttons = []
         self.match_stats = self.blank_match_stats()
+
+        self._map_surface = None
+        self._menu_backdrop = None
 
         self.paths = {
             "top": [(92, 608), (96, 150), (910, 146), (1002, 112)],
@@ -109,12 +107,6 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.banners = []
         self.setup_network(network_role, network_address, network_port)
 
-        self.root.bind("<KeyPress>", self.on_key_press)
-        self.root.bind("<KeyRelease>", self.on_key_release)
-        self.root.bind("<Motion>", self.on_mouse_move)
-        self.root.bind("<Button-1>", self.on_left_click)
-        self.root.bind("<Button-3>", self.on_right_click)
-        self.root.focus_force()
         if self.network_role == "host":
             self.selected_mode_key = mode_key
             self.reset_match(hero_key, enemy_hero_key=remote_hero_key)
@@ -127,7 +119,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
             self.state = "playing"
             self.start_network()
 
-    def text(self, key, **kwargs):
+    def text(self, key, /, **kwargs):
         value = L10N[self.language][key]
         if kwargs:
             return value.format(**kwargs)
@@ -371,8 +363,9 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         return monsters
 
     def start(self):
-        self.loop()
-        self.root.mainloop()
+        while self.running:
+            self.loop()
+        pygame.quit()
 
     def now(self):
         return time.perf_counter()
@@ -381,6 +374,9 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         current = time.perf_counter()
         dt = min(0.05, current - self.last_time)
         self.last_time = current
+        self.handle_events()
+        if not self.running:
+            return
         if self.state == "loading" and current - self.loading_started_at >= 1.15:
             self.state = "playing"
             self.last_time = time.perf_counter()
@@ -392,7 +388,29 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
                 self.update(dt)
                 self.network_after_update()
         self.draw()
-        self.root.after(FPS_MS, self.loop)
+        pygame.display.flip()
+        self.clock.tick(60)
+
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                key = key_name(event.key)
+                if key:
+                    self.on_key_down(key)
+            elif event.type == pygame.KEYUP:
+                key = key_name(event.key)
+                if key:
+                    self.on_key_up(key)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    self.on_left_click(event.pos[0], event.pos[1])
+                elif event.button == 3:
+                    self.on_right_click(event.pos[0], event.pos[1])
+            elif event.type == pygame.WINDOWFOCUSLOST:
+                self.keys.clear()
+        self.mouse_x, self.mouse_y = pygame.mouse.get_pos()
 
     def update(self, dt):
         self.match_time += dt
@@ -417,9 +435,30 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.cleanup_dead()
         self.check_winner()
 
-    def show_message(self, text):
-        self.message = text
+    def show_message(self, message):
+        self.message = message
         self.message_until = self.now() + 2.2
+
+
+SPECIAL_KEYS = {
+    pygame.K_ESCAPE: "escape",
+    pygame.K_RETURN: "return",
+    pygame.K_SPACE: "space",
+    pygame.K_TAB: "tab",
+    pygame.K_UP: "up",
+    pygame.K_DOWN: "down",
+    pygame.K_LEFT: "left",
+    pygame.K_RIGHT: "right",
+}
+
+
+def key_name(key_code):
+    if pygame.K_a <= key_code <= pygame.K_z:
+        return chr(key_code)
+    if pygame.K_0 <= key_code <= pygame.K_9:
+        return chr(key_code)
+    return SPECIAL_KEYS.get(key_code)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run Aether Clash.")

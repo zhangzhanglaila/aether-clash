@@ -5,11 +5,10 @@ from game_data import HEROES, L10N, SKILL_UPGRADE_KEYS
 
 
 class InputMixin:
-    def on_key_press(self, event):
-        key = event.keysym.lower()
+    def on_key_down(self, key):
         if getattr(self, "network_role", None) == "client" and self.state == "playing":
             if key == "escape":
-                self.root.destroy()
+                self.running = False
                 return
             if key == "h":
                 self.tutorial_visible = not self.tutorial_visible
@@ -34,7 +33,7 @@ class InputMixin:
             elif key in {"2", "e"}:
                 self.choose_language("en")
             elif key == "escape":
-                self.root.destroy()
+                self.running = False
             return
 
         if self.state == "lobby":
@@ -43,7 +42,7 @@ class InputMixin:
             elif key in {"return", "space"} and self.selected_mode_key:
                 self.state = "select"
             elif key == "escape":
-                self.root.destroy()
+                self.running = False
             return
 
         if self.state == "loading":
@@ -51,7 +50,7 @@ class InputMixin:
 
         if self.state == "playing" and self.match_over:
             if key == "escape":
-                self.root.destroy()
+                self.running = False
             return
 
         if self.state == "select":
@@ -61,7 +60,7 @@ class InputMixin:
                 if 0 <= index < len(hero_keys):
                     self.choose_hero(hero_keys[index])
             elif key == "escape":
-                self.root.destroy()
+                self.running = False
             return
 
         if self.state == "playing" and self.recalling:
@@ -93,11 +92,10 @@ class InputMixin:
         elif key == "space":
             self.hero_attack(self.player)
         elif key == "escape":
-            self.root.destroy()
+            self.running = False
 
 
-    def on_key_release(self, event):
-        key = event.keysym.lower()
+    def on_key_up(self, key):
         if getattr(self, "network_role", None) == "client" and self.state == "playing":
             if key == "tab":
                 self.show_scoreboard = False
@@ -112,59 +110,52 @@ class InputMixin:
             return
         if self.state == "playing" and key == self.aiming_skill:
             self.cast_aiming_skill()
-        self.keys.discard(event.keysym.lower())
+        self.keys.discard(key)
 
 
-    def on_mouse_move(self, event):
-        self.mouse_x = event.x
-        self.mouse_y = event.y
-        if getattr(self, "network_role", None) == "client" and self.state == "playing":
-            self.send_network_input({"kind": "mouse", "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
-
-
-    def on_left_click(self, event):
-        self.mouse_x = event.x
-        self.mouse_y = event.y
+    def on_left_click(self, x, y):
+        self.mouse_x = x
+        self.mouse_y = y
         if getattr(self, "network_role", None) == "client" and self.state == "playing":
             self.aiming_skill = None
-            if self.select_tutorial_at(self.mouse_x, self.mouse_y):
+            if self.select_tutorial_at(x, y):
                 return
-            self.send_network_input({"kind": "left_click", "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
+            self.send_network_input({"kind": "left_click", "mouse_x": x, "mouse_y": y})
             return
         if self.state == "language":
-            self.select_language_at(self.mouse_x, self.mouse_y)
+            self.select_language_at(x, y)
             return
         if self.state == "lobby":
-            self.select_lobby_at(self.mouse_x, self.mouse_y)
+            self.select_lobby_at(x, y)
             return
         if self.state == "loading":
             return
         if self.state == "select":
-            self.select_card_at(self.mouse_x, self.mouse_y)
+            self.select_card_at(x, y)
             return
         if self.state == "playing" and self.match_over:
-            self.select_settlement_at(self.mouse_x, self.mouse_y)
+            self.select_settlement_at(x, y)
             return
-        if self.state == "playing" and self.select_tutorial_at(self.mouse_x, self.mouse_y):
+        if self.state == "playing" and self.select_tutorial_at(x, y):
             return
         if self.state == "playing" and self.recalling:
             self.cancel_recall()
             return
-        if self.state == "playing" and self.select_skill_upgrade_at(self.mouse_x, self.mouse_y):
+        if self.state == "playing" and self.select_skill_upgrade_at(x, y):
             return
         if self.state == "playing" and self.aiming_skill:
             self.cast_aiming_skill()
             return
-        if self.state == "playing" and self.select_utility_at(self.mouse_x, self.mouse_y):
+        if self.state == "playing" and self.select_utility_at(x, y):
             return
-        if self.state == "playing" and self.lock_target_at(self.mouse_x, self.mouse_y):
+        if self.state == "playing" and self.lock_target_at(x, y):
             return
-        if self.select_shop_at(self.mouse_x, self.mouse_y):
+        if self.select_shop_at(x, y):
             return
         self.hero_attack(self.player)
 
 
-    def on_right_click(self, _event):
+    def on_right_click(self, _x, _y):
         if getattr(self, "network_role", None) == "client" and self.state == "playing":
             self.aiming_skill = None
             self.send_network_input({"kind": "right_click", "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
@@ -295,4 +286,3 @@ class InputMixin:
             if left <= x <= right and top <= y <= bottom:
                 return self.upgrade_skill(self.player, skill_key)
         return False
-
