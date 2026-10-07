@@ -23,6 +23,10 @@ class InputMixin:
                 self.aiming_skill = key
             self.send_network_input({"kind": "key_press", "key": key, "mouse_x": self.mouse_x, "mouse_y": self.mouse_y})
             return
+        if self.state == "playing" and self.paused:
+            if key == "escape":
+                self.paused = False
+            return
         if self.state == "playing" and key == "tab":
             self.show_scoreboard = True
             return
@@ -73,6 +77,9 @@ class InputMixin:
         if self.state == "playing" and key == "b":
             self.start_recall()
             return
+        if self.state == "playing" and key == "escape":
+            self.paused = True
+            return
         if self.state == "playing" and key in SKILL_UPGRADE_KEYS:
             self.upgrade_skill(self.player, SKILL_UPGRADE_KEYS[key])
             return
@@ -98,6 +105,9 @@ class InputMixin:
 
 
     def on_key_up(self, key):
+        if self.state == "playing" and self.paused:
+            self.keys.discard(key)
+            return
         if getattr(self, "network_role", None) == "client" and self.state == "playing":
             if key == "tab":
                 self.show_scoreboard = False
@@ -139,6 +149,9 @@ class InputMixin:
             return
         if self.state == "playing" and self.match_over:
             self.select_settlement_at(x, y)
+            return
+        if self.state == "playing" and self.paused:
+            self.select_pause_at(x, y)
             return
         if self.state == "playing" and self.select_tutorial_at(x, y):
             return
@@ -292,6 +305,24 @@ class InputMixin:
         if left <= x <= right and top <= y <= bottom:
             self.tutorial_visible = False
             return True
+        return False
+
+
+    def select_pause_at(self, x, y):
+        for action, value, left, top, right, bottom in getattr(self, "pause_buttons", []):
+            if left <= x <= right and top <= y <= bottom:
+                if action == "resume":
+                    self.paused = False
+                elif action == "volume":
+                    self.profile["settings"]["volume"] = value
+                    meta.save_settings(self.profile)
+                    self.play_sound("buy", 0.9)
+                elif action == "shake":
+                    self.profile["settings"]["shake"] = not self.profile["settings"].get("shake", True)
+                    meta.save_settings(self.profile)
+                elif action == "quit":
+                    self.running = False
+                return True
         return False
 
 

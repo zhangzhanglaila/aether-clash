@@ -778,6 +778,9 @@ class RenderingMixin:
         if self.tutorial_visible and not self.match_over:
             self.draw_tutorial(c)
 
+        if self.paused:
+            self.draw_pause_menu(c)
+
         if self.match_over:
             self.draw_settlement(c)
 
@@ -1198,6 +1201,40 @@ class RenderingMixin:
         text(c, left + 14, top + 20, title, "#f5f1d7", 11, True, anchor="w")
         text(c, left + 14, top + 52, body, "#cfd6cd", 9, False, anchor="w", width=314)
         text(c, left + 14, top + 92, passive, self.player.accent, 8, True, anchor="w", width=314)
+
+    def draw_pause_menu(self, c):
+        self.pause_buttons = []
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((6, 9, 11, 175))
+        c.blit(overlay, (0, 0))
+        left, top, right, bottom = 350, 196, 750, 520
+        rect(c, left, top, right, bottom, fill="#101416", outline="#d8cf9b", width=2)
+        text(c, WIDTH // 2, top + 38, self.text("paused"), "#f5f1d7", 22, True)
+
+        bx1, by1, bx2, by2 = left + 40, top + 76, right - 40, top + 124
+        self.pause_buttons.append(("resume", 0, bx1, by1, bx2, by2))
+        rect(c, bx1, by1, bx2, by2, fill="#27343a", outline="#d8cf9b", width=2)
+        text(c, (bx1 + bx2) // 2, (by1 + by2) // 2, self.text("resume"), "#f5f1d7", 13, True)
+
+        text(c, left + 40, top + 162, self.text("sfx_volume"), "#cfd6cd", 11, True, anchor="w")
+        volume = self.profile["settings"].get("volume", 0.8)
+        for index in range(5):
+            px = left + 56 + index * 40
+            py = top + 192
+            active = volume >= (index + 1) / 5 - 0.01
+            self.pause_buttons.append(("volume", (index + 1) / 5, px - 14, py - 12, px + 14, py + 12))
+            oval(c, px - 14, py - 12, px + 14, py + 12, fill="#d8cf9b" if active else "#252a2a", outline="#394043", width=2)
+
+        shake_on = self.profile["settings"].get("shake", True)
+        tx1, ty1, tx2, ty2 = left + 40, top + 228, right - 40, top + 268
+        self.pause_buttons.append(("shake", 0, tx1, ty1, tx2, ty2))
+        rect(c, tx1, ty1, tx2, ty2, fill="#27343a", outline="#76f4d1" if shake_on else "#394043", width=2)
+        text(c, (tx1 + tx2) // 2, (ty1 + ty2) // 2, f"{self.text('screen_shake')}: {self.text('on') if shake_on else self.text('off')}", "#f5f1d7", 12, True)
+
+        qx1, qy1, qx2, qy2 = left + 40, bottom - 40, right - 40, bottom - 8
+        self.pause_buttons.append(("quit", 0, qx1, qy1, qx2, qy2))
+        rect(c, qx1, qy1, qx2, qy2, fill="#1d1418", outline="#ff7b7c", width=2)
+        text(c, (qx1 + qx2) // 2, (qy1 + qy2) // 2, self.text("quit_game"), "#ff7b7c", 12, True)
 
     def draw_tutorial(self, c):
         left, top, right, bottom = 214, 88, 592, 244

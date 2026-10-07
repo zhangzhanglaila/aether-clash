@@ -16,6 +16,7 @@ DEFAULT_PROFILE = {
     "damage": 0,
     "quests": {},
     "skins": {},
+    "settings": {"volume": 0.8, "shake": True},
 }
 
 QUEST_POOL = [
@@ -45,6 +46,10 @@ def load_profile():
             profile.update({key: value for key, value in data.items() if key in DEFAULT_PROFILE})
     except (OSError, ValueError):
         pass
+    settings = dict(DEFAULT_PROFILE["settings"])
+    if isinstance(profile.get("settings"), dict):
+        settings.update(profile["settings"])
+    profile["settings"] = settings
     return profile
 
 
@@ -94,6 +99,10 @@ def set_selected_skin(profile, hero_key, skin_id, styles):
     skins[hero_key] = skin_id
     save_profile(profile)
     return True
+
+
+def save_settings(profile):
+    save_profile(profile)
 
 
 def apply_match_result(profile, match_stats, hero_stats, won):

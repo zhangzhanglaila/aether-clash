@@ -72,6 +72,8 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.summoner_cooldowns = {"f": 0, "g": 0}
         self.summoner_cd_durations = {"f": 12.0, "g": 18.0}
         self.aiming_skill = None
+        self.paused = False
+        self.pause_buttons = []
         self.show_scoreboard = False
         self.locked_target = None
         self.tutorial_visible = True
@@ -246,6 +248,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         rule = self.mode_rule()
         self.match_over = False
         self.winner = None
+        self.paused = False
         self.shake_until = 0.0
         self.freeze_until = 0.0
         self.profile_awarded = False
@@ -405,9 +408,11 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         if current - last < min_interval:
             return
         self._sound_last_played[name] = current
-        self.sfx.play(name, volume)
+        self.sfx.play(name, volume * self.profile["settings"].get("volume", 0.8))
 
     def trigger_shake(self, strength, duration):
+        if not self.profile["settings"].get("shake", True):
+            return
         current = self.now()
         if current < self.shake_until and self.shake_strength >= strength:
             return
@@ -440,7 +445,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
             self.process_network_events()
             if self.network_role == "client":
                 self.network_client_tick()
-            elif not self.match_over and self.now() >= self.freeze_until:
+            elif not self.match_over and not self.paused and self.now() >= self.freeze_until:
                 self.update(dt)
                 self.network_after_update()
         self.draw()
