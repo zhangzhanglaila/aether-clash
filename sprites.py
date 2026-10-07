@@ -206,7 +206,15 @@ def minion_sprite(kind, team_name, frame=0):
     return surface
 
 
-def monster_sprite(color_value, radius):
+def monster_sprite(color_value, radius, camp_key=None):
+    if camp_key:
+        override = _load_override(f"sprites/monsters/{camp_key}.png")
+        if override:
+            target = int(radius * 2 + 14)
+            key = ("monster_override", camp_key, target)
+            if key not in _surfaces:
+                _surfaces[key] = pygame.transform.scale(override, (target, target))
+            return _surfaces[key]
     key = ("monster", color_value, round(radius))
     if key in _surfaces:
         return _surfaces[key]
@@ -268,18 +276,6 @@ def core_sprite(team_name):
     pygame.draw.polygon(surface, _shade(team, 1.8), [(cx, cy - 10), (cx - 7, cy), (cx, cy + 10), (cx + 7, cy)])
     _surfaces[key] = surface
     return surface
-
-
-def rotate_for_blit(surface, angle, bucket_deg=10):
-    """Rotate a north-facing sprite to aim angle (radians); cached in coarse buckets."""
-    bucket = int(math.degrees(angle) // bucket_deg)
-    key = (id(surface), bucket)
-    if key in _rotated:
-        return _rotated[key]
-    # sprite points north; pygame rotates counterclockwise in degrees
-    rotated = pygame.transform.rotate(surface, -math.degrees(angle) - 90)
-    _rotated[key] = rotated
-    return rotated
 
 
 def portrait_scaled(hero_key, role, accent, size):

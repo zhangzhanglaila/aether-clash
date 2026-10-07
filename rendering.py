@@ -698,7 +698,7 @@ class RenderingMixin:
             return
         r = monster.radius
         oval(c, monster.x - r - 8, monster.y - r - 8, monster.x + r + 8, monster.y + r + 8, fill="#101416", outline=monster.color, width=2)
-        creature = sprites.monster_sprite(monster.color, r)
+        creature = sprites.monster_sprite(monster.color, r, monster.camp_key)
         c.blit(creature, creature.get_rect(center=(round(monster.x), round(monster.y))))
         self.draw_bar(c, monster.x - 34, monster.y - r - 18, 68, monster.hp, monster.max_hp, "#48d06b")
 
@@ -708,14 +708,10 @@ class RenderingMixin:
             left = max(0, int(hero.respawn_at - self.now() + 1))
             text(c, x, y - 38, str(left), "#ffffff", 18, True)
             return
-        angle = math.atan2(self.mouse_y - hero.y, self.mouse_x - hero.x) if hero.team == "blue" else 0
-        if hero.team == "red":
-            target = self.nearest_enemy(hero, 420)
-            facing = target if target else self.blue_core
-            angle = math.atan2(facing.y - hero.y, facing.x - hero.x)
         sprite = sprites.hero_sprite(hero.hero_key, hero.role, hero.accent, hero.team, int(self.now() * 2.6) % 2)
-        rotated = sprites.rotate_for_blit(sprite, angle)
-        c.blit(rotated, rotated.get_rect(center=(round(hero.x), round(hero.y))))
+        # team ring under the feet keeps sides readable for front-facing art
+        oval(c, hero.x - 19, hero.y - 10, hero.x + 19, hero.y + 22, outline=team_color(hero.team), width=2)
+        c.blit(sprite, sprite.get_rect(center=(round(hero.x), round(hero.y))))
         if self.now() < hero.flash_until:
             overlay = flash_overlay()
             c.blit(overlay, overlay.get_rect(center=(round(hero.x), round(hero.y))))
