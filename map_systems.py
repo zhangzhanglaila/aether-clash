@@ -249,6 +249,7 @@ class MapSystemsMixin:
         else:
             return
         self.play_sound("victory" if self.winner == "blue" else "defeat", 0.85)
+        self.finish_match()
 
 
     def respawn(self, hero):

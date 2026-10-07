@@ -19,6 +19,7 @@ from game_data import (
 from equipment_data import ITEMS
 from ai import AiMixin
 from audio import SoundBank
+import meta
 from combat import CombatMixin
 from economy import EconomyMixin
 from input_handler import InputMixin
@@ -76,6 +77,10 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.tutorial_close_button = None
         self.skill_detail_buttons = []
         self.match_stats = self.blank_match_stats()
+        self.profile = meta.load_profile()
+        self.profile_awarded = False
+        self.match_xp_gain = 0
+        self.match_levelups = 0
 
         self._map_surface = None
         self._menu_backdrop = None
@@ -237,6 +242,9 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.winner = None
         self.shake_until = 0.0
         self.freeze_until = 0.0
+        self.profile_awarded = False
+        self.match_xp_gain = 0
+        self.match_levelups = 0
         self.spawn_timer = 0
         self.wave_index = 0
         self.match_time = 0
@@ -478,6 +486,19 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
     def show_message(self, message):
         self.message = message
         self.message_until = self.now() + 2.2
+
+    def finish_match(self):
+        if self.profile_awarded:
+            return
+        self.profile_awarded = True
+        hero_stats = dict(self.match_stats[self.player.team])
+        hero_stats["kills"] = self.player.kills
+        hero_stats["towers_destroyed"] = sum(1 for tower in self.towers if tower.team != self.player.team and not tower.alive)
+        won = self.winner == "blue"
+        self.match_xp_gain, self.match_levelups = meta.apply_match_result(self.profile, self.match_stats, hero_stats, won)
+        meta.save_profile(self.profile)
+        if self.match_levelups:
+            self.show_message(self.text("level_up_account", level=self.profile["level"]))
 
 
 SPECIAL_KEYS = {

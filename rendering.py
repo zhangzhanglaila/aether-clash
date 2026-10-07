@@ -16,6 +16,7 @@ from game_data import (
     clamp,
     team_color,
 )
+import meta
 
 # tkinter font sizes are points (~1.33px at 96dpi); pygame sizes are pixels.
 FONT_SCALE = 4 / 3
@@ -432,8 +433,15 @@ class RenderingMixin:
         rect(c, 44, 122, 342, 254, fill="#20282b", outline="#d8cf9b", width=2)
         text(c, 72, 154, self.text("profile"), "#f5f1d7", 15, True, anchor="w")
         mode_name = self.mode_configs()[self.selected_mode_key][0] if self.selected_mode_key else self.text("mode_unselected")
-        text(c, 72, 188, mode_name, "#78a3ff", 18, True, anchor="w")
-        text(c, 72, 222, self.text("hero_unselected"), "#aeb8ad", 12, False, anchor="w")
+        text(c, 72, 184, mode_name, "#78a3ff", 18, True, anchor="w")
+        text(c, 72, 212, self.text("hero_unselected"), "#aeb8ad", 12, False, anchor="w")
+        account_line = self.text(
+            "account_line",
+            level=self.profile["level"],
+            xp=self.profile["xp"],
+            need=meta.xp_for_level(self.profile["level"]),
+        )
+        text(c, 72, 238, account_line, "#f7d765", 11, True, anchor="w")
 
         self.mode_cards = []
         mode_layout = [
@@ -1043,6 +1051,15 @@ class RenderingMixin:
         result_color = "#78a3ff" if blue_won else "#ff7b7c"
         text(c, WIDTH // 2, top + 84, result_text, result_color, 36, True)
         text(c, WIDTH // 2, top + 124, f"{self.text('duration')} {self.format_time(self.match_time)}", "#cfd6cd", 12)
+        account_color = "#f7d765" if self.match_levelups else "#d8cf9b"
+        xp_prefix = self.text("level_up_account", level=self.profile["level"]) + "  " if self.match_levelups else ""
+        xp_line = f"{xp_prefix}{self.text('xp_gain')} +{self.match_xp_gain}   " + self.text(
+            "account_line",
+            level=self.profile["level"],
+            xp=self.profile["xp"],
+            need=meta.xp_for_level(self.profile["level"]),
+        )
+        text(c, WIDTH // 2, top + 146, xp_line, account_color, 10, True)
 
         self.draw_settlement_stats(c, self.player, left + 42, top + 162, "#78a3ff")
         self.draw_settlement_stats(c, self.enemy_hero, WIDTH // 2 + 16, top + 162, "#ff7b7c")
