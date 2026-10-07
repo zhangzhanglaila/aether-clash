@@ -17,6 +17,7 @@ from game_data import (
     team_color,
 )
 import meta
+import sprites
 
 # tkinter font sizes are points (~1.33px at 96dpi); pygame sizes are pixels.
 FONT_SCALE = 4 / 3
@@ -183,6 +184,17 @@ def text(c, x, y, value, fill, size=12, bold=False, anchor="center", width=None)
             blit_line(c, font, ln, clr, x, top + index * line_height + line_height // 2, anchor)
         return
     blit_line(c, font, str(value), clr, x, y, anchor)
+
+
+_flash_overlay = None
+
+
+def flash_overlay():
+    global _flash_overlay
+    if _flash_overlay is None:
+        _flash_overlay = pygame.Surface((52, 52), pygame.SRCALPHA)
+        pygame.draw.circle(_flash_overlay, (255, 255, 255, 150), (26, 26), 24)
+    return _flash_overlay
 
 
 class RenderingMixin:
@@ -386,7 +398,7 @@ class RenderingMixin:
             hotkey = "0" if index == 9 else str(index + 1)
             text(c, left + 16, top + 19, f"{hotkey}. {self.hero_name(hero_key)}", "#f5f1d7", 12, True, anchor="w", width=150)
             text(c, left + 16, top + 40, self.hero_role(hero_key), config["accent"], 9, True, anchor="w")
-            self.draw_hero_icon(c, left + 165, top + 26, config)
+            self.draw_hero_icon(c, left + 165, top + 26, hero_key)
 
             stat_y = top + 76
             self.draw_stat(c, left + 16, stat_y, "HP", config["hp"], 760, "#48d06b")
@@ -480,8 +492,8 @@ class RenderingMixin:
         text(c, WIDTH // 2, 86, self.text("loading"), "#f5f1d7", 26, True)
         rect(c, 184, 154, 456, 514, fill="#20282b", outline=self.player.accent, width=3)
         rect(c, 644, 154, 916, 514, fill="#20282b", outline="#e84d4f", width=3)
-        self.draw_hero_portrait(c, 320, 300, HEROES[self.player.hero_key])
-        self.draw_hero_portrait(c, 780, 300, HEROES[enemy_key])
+        self.draw_hero_portrait(c, 320, 300, self.player.hero_key)
+        self.draw_hero_portrait(c, 780, 300, enemy_key)
         text(c, 320, 430, self.hero_name(self.player.hero_key), "#f5f1d7", 20, True)
         text(c, 780, 430, self.text("enemy_prefix", name=self.hero_name(enemy_key)), "#f5f1d7", 20, True)
         text(c, WIDTH // 2, 320, self.text("versus"), "#d8cf9b", 28, True)
@@ -519,18 +531,17 @@ class RenderingMixin:
             self._menu_backdrop = surface
         c.blit(self._menu_backdrop, (0, 0))
 
-    def draw_hero_portrait(self, c, x, y, config):
-        accent = config["accent"]
-        oval(c, x - 54, y - 54, x + 54, y + 54, fill="#14191c", outline=accent, width=4)
-        polygon(c, [x, y - 48, x - 45, y + 38, x + 45, y + 38], fill=accent, outline="#f5f1d7", width=2)
-        oval(c, x - 24, y - 20, x + 24, y + 28, fill="#1f282c")
-        line(c, [x - 62, y + 68, x + 62, y + 68], accent, 3)
+    def draw_hero_portrait(self, c, x, y, hero_key):
+        config = HEROES[hero_key]
+        oval(c, x - 54, y - 54, x + 54, y + 54, fill="#14191c", outline=config["accent"], width=4)
+        portrait = sprites.portrait_scaled(hero_key, config["role"], config["accent"], 92)
+        c.blit(portrait, portrait.get_rect(center=(round(x), round(y))))
+        line(c, [x - 62, y + 68, x + 62, y + 68], config["accent"], 3)
 
-    def draw_hero_icon(self, c, x, y, config):
-        accent = config["accent"]
-        oval(c, x - 22, y - 22, x + 22, y + 22, fill="#14191c", outline=accent, width=3)
-        polygon(c, [x, y - 18, x - 17, y + 14, x + 17, y + 14], fill=accent, outline="#f5f1d7", width=1)
-        oval(c, x - 9, y - 6, x + 9, y + 11, fill="#1f282c")
+    def draw_hero_icon(self, c, x, y, hero_key):
+        config = HEROES[hero_key]
+        icon = sprites.portrait_scaled(hero_key, config["role"], config["accent"], 42)
+        c.blit(icon, icon.get_rect(center=(round(x), round(y))))
 
     def draw_stat(self, c, x, y, label, value, max_value, bar_color):
         text(c, x, y, label, "#f5f1d7", 10, True, anchor="w")
@@ -697,15 +708,17 @@ class RenderingMixin:
             left = max(0, int(hero.respawn_at - self.now() + 1))
             text(c, x, y - 38, str(left), "#ffffff", 18, True)
             return
-        hero_color = team_color(hero.team)
         angle = math.atan2(self.mouse_y - hero.y, self.mouse_x - hero.x) if hero.team == "blue" else 0
-        pts = []
-        for i, spread in enumerate([0, 2.35, -2.35]):
-            length = 25 if i == 0 else 18
-            pts.extend([hero.x + math.cos(angle + spread) * length, hero.y + math.sin(angle + spread) * length])
-        flash_white = self.now() < hero.flash_until
-        polygon(c, pts, fill="#ffffff" if flash_white else hero_color, outline=hero.accent, width=3)
-        oval(c, hero.x - 10, hero.y - 10, hero.x + 10, hero.y + 10, fill="#1a2024")
+        if hero.team == "red":
+            target = self.nearest_enemy(hero, 420)
+            facing = target if target else self.blue_core
+            angle = math.atan2(facing.y - hero.y, facing.x - hero.x)
+        sprite = sprites.hero_sprite(hero.hero_key, hero.role, hero.accent, hero.team, int(self.now() * 2.6) % 2)
+        rotated = sprites.rotate_for_blit(sprite, angle)
+        c.blit(rotated, rotated.get_rect(center=(round(hero.x), round(hero.y))))
+        if self.now() < hero.flash_until:
+            overlay = flash_overlay()
+            c.blit(overlay, overlay.get_rect(center=(round(hero.x), round(hero.y))))
         if self.hero_in_brush(hero):
             oval(c, hero.x - 30, hero.y - 30, hero.x + 30, hero.y + 30, outline="#76f4a0", width=2, dash=(6, 5))
         if hero.shield > 0:
@@ -728,9 +741,9 @@ class RenderingMixin:
         x = hero.x
         y = hero.y - 58
         rect(c, x - 54, y - 12, x + 54, y + 23, fill="#101416", outline="#2f383b")
-        oval(c, x - 61, y - 14, x - 31, y + 16, outline=hero.accent, width=2)
-        oval(c, x - 58, y - 11, x - 34, y + 13, fill=hero.accent, outline="#f5f1d7", width=1)
-        text(c, x - 46, y + 1, str(hero.level), "#111719", 10, True)
+        icon = sprites.portrait_scaled(hero.hero_key, hero.role, hero.accent, 30)
+        c.blit(icon, icon.get_rect(center=(x - 46, y - 1)))
+        text(c, x - 46, y + 17, str(hero.level), "#f5f1d7", 8, True)
         name_size = 8 if len(display_name) > 10 else 9
         text(c, x - 28, y - 1, display_name, "#f5f1d7", name_size, True, anchor="w")
         self.draw_bar(c, x - 32, y + 14, 74, hero.hp, hero.max_hp, "#48d06b")
@@ -1015,8 +1028,10 @@ class RenderingMixin:
 
     def draw_scoreboard_row(self, c, hero, left, top, width, row_color):
         rect(c, left, top, left + width, top + 82, fill="#111719", outline=row_color, width=2)
-        oval(c, left + 18, top + 18, left + 58, top + 58, fill=hero.accent, outline="#f5f1d7", width=2)
-        text(c, left + 38, top + 38, str(hero.level), "#101416", 14, True)
+        icon = sprites.portrait_scaled(hero.hero_key, hero.role, hero.accent, 40)
+        c.blit(icon, icon.get_rect(center=(left + 38, top + 36)))
+        oval(c, left + 42, top + 42, left + 58, top + 58, fill="#101416", outline="#f5f1d7", width=1)
+        text(c, left + 50, top + 50, str(hero.level), "#f5f1d7", 8, True)
         name = self.hero_name(hero.hero_key)
         if hero.team == "red":
             name = self.text("enemy_prefix", name=name)
