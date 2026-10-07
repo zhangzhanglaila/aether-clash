@@ -455,6 +455,23 @@ class RenderingMixin:
             need=meta.xp_for_level(self.profile["level"]),
         )
         text(c, 72, 238, account_line, "#f7d765", 11, True, anchor="w")
+        self.draw_quests_panel(c)
+
+    def draw_quests_panel(self, c):
+        quests = meta.daily_quests()
+        state = self.profile.get("quests") or {}
+        left, top, right, bottom = 700, 498, 958, 640
+        rect(c, left, top, right, bottom, fill="#101416", outline="#394043", width=2)
+        text(c, left + 14, top + 18, self.text("daily_quests"), "#d8cf9b", 12, True, anchor="w")
+        for index, quest in enumerate(quests):
+            y = top + 46 + index * 32
+            done = quest["id"] in state.get("done", [])
+            progress = min(state.get("progress", {}).get(quest["id"], 0), quest["goal"])
+            mark = "✓ " if done else ""
+            desc_color = "#5f6a5f" if done else "#cfd6cd"
+            text(c, left + 14, y, f"{mark}{self.text(quest['text_key'], goal=quest['goal'])}", desc_color, 9, True, anchor="w")
+            progress_color = "#76f4d1" if done else "#f7d765"
+            text(c, right - 14, y, f"{progress}/{quest['goal']}  +{quest['reward']}", progress_color, 9, True, anchor="e")
 
         self.mode_cards = []
         mode_layout = [
@@ -1050,6 +1067,17 @@ class RenderingMixin:
             need=meta.xp_for_level(self.profile["level"]),
         )
         text(c, WIDTH // 2, top + 146, xp_line, account_color, 10, True)
+        if self.quests_completed:
+            quest_xp = sum(quest["reward"] for quest in self.quests_completed)
+            text(
+                c,
+                WIDTH // 2,
+                top + 376,
+                self.text("quests_done", count=len(self.quests_completed), xp=quest_xp),
+                "#76f4d1",
+                10,
+                True,
+            )
 
         self.draw_settlement_stats(c, self.player, left + 42, top + 162, "#78a3ff")
         self.draw_settlement_stats(c, self.enemy_hero, WIDTH // 2 + 16, top + 162, "#ff7b7c")
