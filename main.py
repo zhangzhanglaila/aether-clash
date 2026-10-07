@@ -86,6 +86,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.match_levelups = 0
         self.quests_completed = []
         self.quest_xp_gain = 0
+        self.achievements_unlocked = []
 
         self._map_surface = None
         self._menu_backdrop = None
@@ -256,6 +257,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.match_levelups = 0
         self.quests_completed = []
         self.quest_xp_gain = 0
+        self.achievements_unlocked = []
         self.spawn_timer = 0
         self.wave_index = 0
         self.match_time = 0
@@ -510,6 +512,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         won = self.winner == "blue"
         self.match_xp_gain, self.match_levelups = meta.apply_match_result(self.profile, self.match_stats, hero_stats, won)
         self.quests_completed, self.quest_xp_gain = meta.record_match_progress(self.profile, hero_stats, won)
+        self.achievements_unlocked = meta.evaluate_achievements(self.profile)
         meta.save_profile(self.profile)
         if self.match_levelups:
             self.show_message(self.text("level_up_account", level=self.profile["level"]))

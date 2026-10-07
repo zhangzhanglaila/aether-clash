@@ -469,7 +469,23 @@ class RenderingMixin:
             need=meta.xp_for_level(self.profile["level"]),
         )
         text(c, 72, 238, account_line, "#f7d765", 11, True, anchor="w")
+        self.draw_achievements_panel(c)
         self.draw_quests_panel(c)
+
+    def draw_achievements_panel(self, c):
+        achievements = meta.ACHIEVEMENTS
+        done = set(self.profile.get("achievements") or [])
+        left, top, right, bottom = 44, 268, 342, 502
+        rect(c, left, top, right, bottom, fill="#101416", outline="#394043", width=2)
+        text(c, left + 14, top + 17, f"{self.text('achievements')} {len(done)}/{len(achievements)}", "#d8cf9b", 12, True, anchor="w")
+        values = meta.achievement_values(self.profile)
+        for index, ach in enumerate(achievements):
+            y = top + 40 + index * 16
+            is_done = ach["id"] in done
+            name = self.text(ach["text_key"], goal=ach["goal"])
+            text(c, left + 14, y, ("√ " if is_done else "") + name, "#f7d765" if is_done else "#9ea898", 8, is_done, anchor="w")
+            progress = min(values[ach["metric"]], ach["goal"])
+            text(c, right - 14, y, f"{progress}/{ach['goal']}", "#76f4d1" if is_done else "#5f6a5f", 8, anchor="e")
 
     def draw_quests_panel(self, c):
         quests = meta.daily_quests()
@@ -481,7 +497,7 @@ class RenderingMixin:
             y = top + 46 + index * 32
             done = quest["id"] in state.get("done", [])
             progress = min(state.get("progress", {}).get(quest["id"], 0), quest["goal"])
-            mark = "✓ " if done else ""
+            mark = "√ " if done else ""
             desc_color = "#5f6a5f" if done else "#cfd6cd"
             text(c, left + 14, y, f"{mark}{self.text(quest['text_key'], goal=quest['goal'])}", desc_color, 9, True, anchor="w")
             progress_color = "#76f4d1" if done else "#f7d765"
@@ -1087,12 +1103,16 @@ class RenderingMixin:
             text(
                 c,
                 WIDTH // 2,
-                top + 376,
+                top + 374,
                 self.text("quests_done", count=len(self.quests_completed), xp=quest_xp),
                 "#76f4d1",
                 10,
                 True,
             )
+        if self.achievements_unlocked:
+            ach_xp = sum(ach["reward"] for ach in self.achievements_unlocked)
+            names = " / ".join(self.text(ach["text_key"], goal=ach["goal"]) for ach in self.achievements_unlocked)
+            text(c, WIDTH // 2, top + 390, self.text("ach_unlocked_line", name=names, xp=ach_xp), "#f7d765", 9, True)
 
         self.draw_settlement_stats(c, self.player, left + 42, top + 162, "#78a3ff")
         self.draw_settlement_stats(c, self.enemy_hero, WIDTH // 2 + 16, top + 162, "#ff7b7c")

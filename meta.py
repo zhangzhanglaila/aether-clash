@@ -14,9 +14,13 @@ DEFAULT_PROFILE = {
     "wins": 0,
     "kills": 0,
     "damage": 0,
+    "minions": 0,
+    "towers": 0,
+    "monsters": 0,
     "quests": {},
     "skins": {},
     "settings": {"volume": 0.8, "shake": True},
+    "achievements": [],
 }
 
 QUEST_POOL = [
@@ -25,6 +29,21 @@ QUEST_POOL = [
     {"id": "minions30", "metric": "minions", "goal": 30, "reward": 45, "text_key": "quest_minions"},
     {"id": "matches2", "metric": "matches", "goal": 2, "reward": 40, "text_key": "quest_matches"},
     {"id": "damage8000", "metric": "damage", "goal": 8000, "reward": 50, "text_key": "quest_damage"},
+]
+
+ACHIEVEMENTS = [
+    {"id": "first_win", "metric": "wins", "goal": 1, "reward": 50, "text_key": "ach_first_win"},
+    {"id": "wins10", "metric": "wins", "goal": 10, "reward": 150, "text_key": "ach_wins"},
+    {"id": "kills10", "metric": "kills", "goal": 10, "reward": 50, "text_key": "ach_kills"},
+    {"id": "kills100", "metric": "kills", "goal": 100, "reward": 200, "text_key": "ach_kills"},
+    {"id": "minions200", "metric": "minions", "goal": 200, "reward": 80, "text_key": "ach_minions"},
+    {"id": "minions1000", "metric": "minions", "goal": 1000, "reward": 250, "text_key": "ach_minions"},
+    {"id": "damage50k", "metric": "damage", "goal": 50000, "reward": 150, "text_key": "ach_damage"},
+    {"id": "towers10", "metric": "towers", "goal": 10, "reward": 120, "text_key": "ach_towers"},
+    {"id": "monsters30", "metric": "monsters", "goal": 30, "reward": 100, "text_key": "ach_monsters"},
+    {"id": "matches20", "metric": "matches", "goal": 20, "reward": 120, "text_key": "ach_matches"},
+    {"id": "level5", "metric": "level", "goal": 5, "reward": 100, "text_key": "ach_level"},
+    {"id": "level10", "metric": "level", "goal": 10, "reward": 200, "text_key": "ach_level"},
 ]
 
 
@@ -110,9 +129,50 @@ def apply_match_result(profile, match_stats, hero_stats, won):
     profile["wins"] += 1 if won else 0
     profile["kills"] += hero_stats.get("kills", 0)
     profile["damage"] += int(hero_stats.get("damage_dealt", 0))
+    profile["minions"] += int(hero_stats.get("minions_last_hit", 0))
+    profile["monsters"] += int(hero_stats.get("monsters_slain", 0))
+    profile["towers"] += int(hero_stats.get("towers_destroyed", 0))
     xp_gain = match_xp_reward(match_stats, hero_stats, won)
     leveled = grant_xp(profile, xp_gain)
     return xp_gain, leveled
+
+
+def achievement_values(profile):
+    return {
+        "wins": profile["wins"],
+        "kills": profile["kills"],
+        "minions": profile["minions"],
+        "damage": profile["damage"],
+        "towers": profile["towers"],
+        "monsters": profile["monsters"],
+        "matches": profile["matches"],
+        "level": profile["level"],
+    }
+
+
+def evaluate_achievements(profile):
+    """Unlock any achievements whose goals are now met; grants their XP rewards.
+
+    Returns the list of newly unlocked achievements (may be empty). Loops because
+    an XP reward can level the account up, which can unlock level achievements.
+    """
+    unlocked = list(profile.get("achievements") or [])
+    values = achievement_values(profile)
+    newly = []
+    while True:
+        fresh = [
+            ach for ach in ACHIEVEMENTS
+            if ach["id"] not in unlocked and values[ach["metric"]] >= ach["goal"]
+        ]
+        if not fresh:
+            break
+        for ach in fresh:
+            unlocked.append(ach["id"])
+            newly.append(ach)
+        grant_xp(profile, sum(ach["reward"] for ach in fresh))
+        values["level"] = profile["level"]
+    profile["achievements"] = sorted(unlocked)
+    return newly
 
 
 def record_match_progress(profile, hero_stats, won):
