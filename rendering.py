@@ -12,8 +12,10 @@ from game_data import (
     MODE_RULES,
     RIVER_POLYGON,
     SKILL_MAX_LEVELS,
+    SKIN_STYLES,
     WIDTH,
     clamp,
+    skin_accent,
     team_color,
 )
 import meta
@@ -374,6 +376,7 @@ class RenderingMixin:
         text(c, WIDTH // 2, 72, self.text("language_subtitle"), "#9ea898", 13)
 
         self.hero_cards = []
+        self.skin_buttons = []
         hovered_hero_key = None
         card_w = 198
         card_h = 214
@@ -393,13 +396,14 @@ class RenderingMixin:
             active = left <= self.mouse_x <= right and top <= self.mouse_y <= bottom
             if active:
                 hovered_hero_key = hero_key
+                self.select_hover_hero = hero_key
             outline = config["accent"] if active else "#394043"
             rect(c, left, top, right, bottom, fill="#20282b", outline=outline, width=3)
             rect(c, left, top, right, top + 52, fill="#161c1f")
             hotkey = "0" if index == 9 else str(index + 1)
             text(c, left + 16, top + 19, f"{hotkey}. {self.hero_name(hero_key)}", "#f5f1d7", 12, True, anchor="w", width=150)
             text(c, left + 16, top + 40, self.hero_role(hero_key), config["accent"], 9, True, anchor="w")
-            self.draw_hero_icon(c, left + 165, top + 26, hero_key)
+            self.draw_hero_icon(c, left + 165, top + 26, hero_key, skin_accent(hero_key, meta.selected_skin_id(self.profile, hero_key)))
 
             stat_y = top + 76
             self.draw_stat(c, left + 16, stat_y, "HP", config["hp"], 760, "#48d06b")
@@ -412,24 +416,34 @@ class RenderingMixin:
             trait_size = 8 if len(trait) > 24 else 9
             text(c, left + 16, top + 208, trait, config["accent"], trait_size, True, anchor="w", width=168)
 
-        if hovered_hero_key:
-            accent = HEROES[hovered_hero_key]["accent"]
+        panel_hero_key = self.select_hover_hero
+        if panel_hero_key:
+            accent = skin_accent(panel_hero_key, meta.selected_skin_id(self.profile, panel_hero_key))
             rect(c, 182, 568, 918, 692, fill="#101416", outline=accent, width=2)
             text(
                 c,
                 206,
                 588,
-                f"{self.hero_name(hovered_hero_key)} / {self.hero_role(hovered_hero_key)}",
+                f"{self.hero_name(panel_hero_key)} / {self.hero_role(panel_hero_key)}",
                 "#f5f1d7",
                 12,
                 True,
                 anchor="w",
             )
-            passive = f"P {self.hero_passive_name(hovered_hero_key)}: {self.hero_passive_detail(hovered_hero_key)}"
-            text(c, 206, 610, passive, accent, 8, True, anchor="w", width=690)
+            passive = f"P {self.hero_passive_name(panel_hero_key)}: {self.hero_passive_detail(panel_hero_key)}"
+            text(c, 206, 610, passive, accent, 8, True, anchor="w", width=640)
             for index, key in enumerate(("q", "e", "r")):
-                detail = f"{key.upper()} {self.hero_skill(hovered_hero_key, key)}: {self.hero_skill_detail(hovered_hero_key, key)}"
-                text(c, 206, 634 + index * 18, detail, "#cfd6cd", 8, False, anchor="w", width=690)
+                detail = f"{key.upper()} {self.hero_skill(panel_hero_key, key)}: {self.hero_skill_detail(panel_hero_key, key)}"
+                text(c, 206, 634 + index * 18, detail, "#cfd6cd", 8, False, anchor="w", width=640)
+            for index, style in enumerate(SKIN_STYLES):
+                row_y = 592 + index * 32
+                locked = self.profile["level"] < style["unlock_level"]
+                swatch_accent = skin_accent(panel_hero_key, style["id"])
+                selected = meta.selected_skin_id(self.profile, panel_hero_key) == style["id"]
+                label = self.text(style["name_key"]) if not locked else self.text("skin_locked", level=style["unlock_level"])
+                text(c, 850, row_y, label, "#f5f1d7" if selected else "#9ea898", 8, True, anchor="e")
+                oval(c, 862, row_y - 12, 886, row_y + 12, fill="#14191c" if locked else swatch_accent, outline="#f5f1d7" if selected else "#394043", width=3 if selected else 2)
+                self.skin_buttons.append((style["id"], 858, row_y - 16, 890, row_y + 16))
         else:
             rect(c, 358, 610, 742, 656, fill="#101416", outline="#394043")
             text(c, WIDTH // 2, 633, self.text("choose_hero"), "#d8cf9b", 13, True)
@@ -510,8 +524,8 @@ class RenderingMixin:
         text(c, WIDTH // 2, 86, self.text("loading"), "#f5f1d7", 26, True)
         rect(c, 184, 154, 456, 514, fill="#20282b", outline=self.player.accent, width=3)
         rect(c, 644, 154, 916, 514, fill="#20282b", outline="#e84d4f", width=3)
-        self.draw_hero_portrait(c, 320, 300, self.player.hero_key)
-        self.draw_hero_portrait(c, 780, 300, enemy_key)
+        self.draw_hero_portrait(c, 320, 300, self.player.hero_key, self.player.accent)
+        self.draw_hero_portrait(c, 780, 300, enemy_key, self.enemy_hero.accent)
         text(c, 320, 430, self.hero_name(self.player.hero_key), "#f5f1d7", 20, True)
         text(c, 780, 430, self.text("enemy_prefix", name=self.hero_name(enemy_key)), "#f5f1d7", 20, True)
         text(c, WIDTH // 2, 320, self.text("versus"), "#d8cf9b", 28, True)
@@ -549,16 +563,14 @@ class RenderingMixin:
             self._menu_backdrop = surface
         c.blit(self._menu_backdrop, (0, 0))
 
-    def draw_hero_portrait(self, c, x, y, hero_key):
-        config = HEROES[hero_key]
-        oval(c, x - 54, y - 54, x + 54, y + 54, fill="#14191c", outline=config["accent"], width=4)
-        portrait = sprites.portrait_scaled(hero_key, config["role"], config["accent"], 92)
+    def draw_hero_portrait(self, c, x, y, hero_key, accent):
+        oval(c, x - 54, y - 54, x + 54, y + 54, fill="#14191c", outline=accent, width=4)
+        portrait = sprites.portrait_scaled(hero_key, HEROES[hero_key]["role"], accent, 92)
         c.blit(portrait, portrait.get_rect(center=(round(x), round(y))))
-        line(c, [x - 62, y + 68, x + 62, y + 68], config["accent"], 3)
+        line(c, [x - 62, y + 68, x + 62, y + 68], accent, 3)
 
-    def draw_hero_icon(self, c, x, y, hero_key):
-        config = HEROES[hero_key]
-        icon = sprites.portrait_scaled(hero_key, config["role"], config["accent"], 42)
+    def draw_hero_icon(self, c, x, y, hero_key, accent):
+        icon = sprites.portrait_scaled(hero_key, HEROES[hero_key]["role"], accent, 42)
         c.blit(icon, icon.get_rect(center=(round(x), round(y))))
 
     def draw_stat(self, c, x, y, label, value, max_value, bar_color):

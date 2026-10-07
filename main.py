@@ -3,7 +3,6 @@ import random
 import time
 
 import pygame
-
 from game_data import (
     Core,
     HEROES,
@@ -13,8 +12,10 @@ from game_data import (
     L10N,
     MODE_RULES,
     NeutralMonster,
+    SKIN_STYLES,
     Tower,
     WIDTH,
+    skin_accent,
 )
 from equipment_data import ITEMS
 from ai import AiMixin
@@ -100,6 +101,8 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.lobby_buttons = []
         self.mode_cards = []
         self.hero_cards = []
+        self.skin_buttons = []
+        self.select_hover_hero = None
         self.shop_cards = []
         self.utility_buttons = []
         self.recommended_buy_button = None
@@ -212,7 +215,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
     def mode_rule(self):
         return MODE_RULES.get(self.selected_mode_key or "rank", MODE_RULES["rank"])
 
-    def make_hero(self, hero_key, team, x, y):
+    def make_hero(self, hero_key, team, x, y, skin_id="classic"):
         config = HEROES[hero_key]
         role_armor = {"Tank": 32, "Fighter": 27, "Support": 24, "Assassin": 22, "Marksman": 20, "Mage": 18}
         role_magic_resist = {"Tank": 24, "Fighter": 22, "Support": 24, "Assassin": 18, "Marksman": 18, "Mage": 20}
@@ -230,7 +233,7 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
             name=config["name"],
             hero_key=hero_key,
             role=config["role"],
-            accent=config["accent"],
+            accent=skin_accent(hero_key, skin_id),
             skill_cds=dict(config["cooldowns"]),
             skill_names=dict(config["skills"]),
             armor=config.get("armor", role_armor.get(config["role"], 20)),
@@ -268,8 +271,8 @@ class MobaGame(RenderingMixin, InputMixin, AiMixin, CombatMixin, MapSystemsMixin
         self.tutorial_close_button = None
         self.skill_detail_buttons = []
         self.match_stats = self.blank_match_stats()
-        self.player = self.make_hero(hero_key, "blue", 130, 580)
-        self.enemy_hero = self.make_hero(enemy_hero_key, "red", 965, 120)
+        self.player = self.make_hero(hero_key, "blue", 130, 580, skin_id=meta.selected_skin_id(self.profile, hero_key))
+        self.enemy_hero = self.make_hero(enemy_hero_key, "red", 965, 120, skin_id=random.choice(SKIN_STYLES)["id"])
         self.enemy_hero.name = f"Red {HEROES[enemy_hero_key]['name']}"
         self.apply_starting_level(self.player, rule["start_level"])
         self.player.gold = rule["start_gold"]

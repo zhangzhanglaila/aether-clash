@@ -156,6 +156,31 @@ HEROES = {
 }
 
 
+def blend_hex(base, target, amount):
+    """Blend two #rrggbb colors; amount 0..1 toward target."""
+    a = [int(base[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(target[i:i + 2], 16) for i in (1, 3, 5)]
+    mixed = [round(x + (y - x) * amount) for x, y in zip(a, b)]
+    return "#{:02x}{:02x}{:02x}".format(*mixed)
+
+
+SKIN_STYLES = [
+    {"id": "classic", "name_key": "skin_classic", "unlock_level": 1, "blend": ("#000000", 0.0)},
+    {"id": "ember", "name_key": "skin_ember", "unlock_level": 3, "blend": ("#ff5c33", 0.62)},
+    {"id": "frost", "name_key": "skin_frost", "unlock_level": 5, "blend": ("#6fd8ff", 0.62)},
+]
+
+
+def skin_accent(hero_key, skin_id):
+    """Accent color for a hero under a skin style; classic returns the hero's own accent."""
+    base = HEROES[hero_key]["accent"]
+    style = next((item for item in SKIN_STYLES if item["id"] == skin_id), SKIN_STYLES[0])
+    target, amount = style["blend"]
+    if amount <= 0:
+        return base
+    return blend_hex(base, target, amount)
+
+
 MODE_RULES = {
     "rank": {
         "spawn_interval": 7.0,
@@ -328,6 +353,11 @@ L10N = {
         "quest_matches": "Play {goal} matches",
         "quest_damage": "Deal {goal} hero damage",
         "quests_done": "Daily quests: {count} done  +{xp} XP",
+        "skin_label": "Skins",
+        "skin_classic": "Classic",
+        "skin_ember": "Ember",
+        "skin_frost": "Frost",
+        "skin_locked": "Lv{level}",
         "destroyed_towers": "Towers",
         "rematch": "Rematch",
         "back_lobby": "Lobby",
@@ -594,6 +624,11 @@ L10N = {
         "quest_matches": "完成 {goal} 场对局",
         "quest_damage": "对英雄造成 {goal} 点伤害",
         "quests_done": "每日任务完成 {count} 项  +{xp} 经验",
+        "skin_label": "皮肤",
+        "skin_classic": "经典",
+        "skin_ember": "炽焰",
+        "skin_frost": "寒霜",
+        "skin_locked": "Lv{level}",
         "destroyed_towers": "推塔",
         "rematch": "再来一局",
         "back_lobby": "返回大厅",

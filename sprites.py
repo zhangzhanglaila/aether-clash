@@ -62,7 +62,7 @@ def hero_sprite(hero_key, role, accent, team, frame=0):
     override = _load_override(override_base + ".png") or _load_override(override_base + f"_{team}.png")
     if override:
         return override
-    key = ("hero", hero_key, team, frame)
+    key = ("hero", hero_key, team, frame, accent)
     if key in _surfaces:
         return _surfaces[key]
     size = 64
@@ -129,7 +129,7 @@ def hero_portrait(hero_key, role, accent):
     override = _load_override(f"portraits/{hero_key}.png")
     if override:
         return override
-    key = ("portrait", hero_key)
+    key = ("portrait", hero_key, accent)
     if key in _surfaces:
         return _surfaces[key]
     size = 96
@@ -283,7 +283,7 @@ def rotate_for_blit(surface, angle, bucket_deg=10):
 
 
 def portrait_scaled(hero_key, role, accent, size):
-    key = ("portrait_scaled", hero_key, size)
+    key = ("portrait_scaled", hero_key, size, accent)
     if key in _rotated:
         return _rotated[key]
     scaled = pygame.transform.smoothscale(hero_portrait(hero_key, role, accent), (size, size))

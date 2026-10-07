@@ -1,7 +1,9 @@
 import time
 
 from equipment_data import ITEMS
-from game_data import HEROES, L10N, SKILL_UPGRADE_KEYS
+from game_data import HEROES, L10N, SKILL_UPGRADE_KEYS, SKIN_STYLES
+
+import meta
 
 
 class InputMixin:
@@ -131,6 +133,8 @@ class InputMixin:
         if self.state == "loading":
             return
         if self.state == "select":
+            if self.select_skin_at(x, y):
+                return
             self.select_card_at(x, y)
             return
         if self.state == "playing" and self.match_over:
@@ -224,6 +228,16 @@ class InputMixin:
             if left <= x <= right and top <= y <= bottom:
                 self.choose_hero(hero_key)
                 return
+
+
+    def select_skin_at(self, x, y):
+        hero_key = getattr(self, "select_hover_hero", None)
+        if not hero_key:
+            return False
+        for skin_id, left, top, right, bottom in getattr(self, "skin_buttons", []):
+            if left <= x <= right and top <= y <= bottom:
+                return meta.set_selected_skin(self.profile, hero_key, skin_id, SKIN_STYLES)
+        return False
 
 
     def select_shop_at(self, x, y):

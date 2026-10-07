@@ -15,6 +15,7 @@ DEFAULT_PROFILE = {
     "kills": 0,
     "damage": 0,
     "quests": {},
+    "skins": {},
 }
 
 QUEST_POOL = [
@@ -78,6 +79,21 @@ def grant_xp(profile, amount):
         profile["level"] += 1
         leveled += 1
     return leveled
+
+
+def selected_skin_id(profile, hero_key):
+    return (profile.get("skins") or {}).get(hero_key, "classic")
+
+
+def set_selected_skin(profile, hero_key, skin_id, styles):
+    """Persist a skin choice; silently ignored when the style is still locked."""
+    style = next((item for item in styles if item["id"] == skin_id), None)
+    if style is None or profile["level"] < style["unlock_level"]:
+        return False
+    skins = profile.setdefault("skins", {})
+    skins[hero_key] = skin_id
+    save_profile(profile)
+    return True
 
 
 def apply_match_result(profile, match_stats, hero_stats, won):
