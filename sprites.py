@@ -22,6 +22,24 @@ DARK = (26, 32, 36)
 _surfaces = {}
 _rotated = {}
 _file_cache = {}
+_map_tiles = {}
+
+
+def map_tile(name, size=32, tint=None, fallback_color="#25333a"):
+    """Scaled map tile by name, optionally color-multiplied (tint); flat color when the file is missing."""
+    key = (name, size, tint)
+    if key in _map_tiles:
+        return _map_tiles[key]
+    override = _load_override(f"sprites/map/{name}.png")
+    if override is None:
+        surface = pygame.Surface((size, size))
+        surface.fill(fallback_color)
+    else:
+        surface = pygame.transform.scale(override, (size, size))
+        if tint:
+            surface.fill(tint, special_flags=pygame.BLEND_MULT)
+    _map_tiles[key] = surface
+    return surface
 
 
 def _load_override(rel_path):

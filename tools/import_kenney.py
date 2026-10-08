@@ -42,6 +42,15 @@ MONSTER_TILES = {
     "red_stone": 122,      # red spider
     "ancient_guard": 124,  # skull
 }
+# environment tiles: sand ground (clean), blue-gray slat lanes, brick walls,
+# cracked dark bricks for jungle zones, and stone patches for the ancient circle
+MAP_TILES = {
+    "floor_sand_0": 48, "floor_sand_1": 49, "floor_sand_2": 50, "floor_sand_3": 51, "floor_sand_4": 52, "floor_sand_5": 53,
+    "floor_lane_0": 36, "floor_lane_1": 37, "floor_lane_2": 38, "floor_lane_3": 40,
+    "floor_jungle_0": 12, "floor_jungle_1": 13, "floor_jungle_2": 15, "floor_jungle_3": 24, "floor_jungle_4": 25,
+    "wall_0": 57, "wall_1": 58, "wall_2": 59,
+    "decor_0": 42, "decor_1": 43,
+}
 TILE = 16
 BATTLE_SCALE = 3   # 16 -> 48
 PORTRAIT_SCALE = 6 # 16 -> 96
@@ -96,6 +105,10 @@ def main():
     for camp_key, tile_index in MONSTER_TILES.items():
         tile = load_tile(tiles_dir, tile_index)
         save(tile, f"sprites/monsters/{camp_key}.png")
+
+    for name, tile_index in MAP_TILES.items():
+        tile = load_tile(tiles_dir, tile_index)
+        save(tile, f"sprites/map/{name}.png")
 
     print("done — art is CC0 from Kenney Tiny Dungeon (https://kenney.nl/assets/tiny-dungeon)")
 

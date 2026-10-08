@@ -144,6 +144,33 @@ def pie(c, x, y, radius, pct, fill="#000000"):
     pygame.draw.polygon(c, color(fill), pts)
 
 
+def point_in_polygon(px, py, points):
+    inside = False
+    j = len(points) - 1
+    for i in range(len(points)):
+        xi, yi = points[i]
+        xj, yj = points[j]
+        if (yi > py) != (yj > py) and px < (xj - xi) * (py - yi) / (yj - yi) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def dist_to_polyline(px, py, pts):
+    best = float("inf")
+    for i in range(len(pts) - 1):
+        ax, ay = pts[i]
+        bx, by = pts[i + 1]
+        dx, dy = bx - ax, by - ay
+        length2 = dx * dx + dy * dy
+        t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length2))
+        cx, cy = ax + t * dx, ay + t * dy
+        d = math.hypot(px - cx, py - cy)
+        if d < best:
+            best = d
+    return best
+
+
 def wrap_text(font, value, max_width):
     lines = []
     for raw in str(value).split("\n"):
@@ -598,41 +625,55 @@ class RenderingMixin:
 
     def build_map_surface(self):
         surface = pygame.Surface((WIDTH, HEIGHT))
-        rect(surface, 0, 0, WIDTH, HEIGHT, fill="#17291f")
-        river_points = []
-        for x, y in RIVER_POLYGON:
-            river_points.extend([x, y])
-        polygon(surface, river_points, fill="#234a55", outline="#3f737c", width=2)
-        jungle_zones = [
-            (250, 430, 410, 588, "#1e3c2b"),
-            (350, 174, 510, 328, "#1f3f34"),
-            (690, 112, 850, 270, "#1e3c2b"),
-            (590, 374, 750, 530, "#1f3f34"),
+        ts = 32
+        cols = math.ceil(WIDTH / ts)
+        rows = math.ceil(HEIGHT / ts)
+        river = list(RIVER_POLYGON)
+        bases = [
+            ([(0, HEIGHT), (0, 505), (188, HEIGHT)], (140, 170, 255)),
+            ([(WIDTH, 0), (WIDTH, 195), (912, 0)], (255, 150, 140)),
         ]
-        for x1, y1, x2, y2, zone_color in jungle_zones:
-            oval(surface, x1, y1, x2, y2, fill=zone_color, outline="#365640", width=2)
-        oval(surface, 486, 288, 614, 412, fill="#2d3a2a", outline="#d8cf9b", width=2)
+        jungles = [
+            ((250 + 410) / 2, (430 + 588) / 2, (410 - 250) / 2, (588 - 430) / 2),
+            ((350 + 510) / 2, (174 + 328) / 2, (510 - 350) / 2, (328 - 174) / 2),
+            ((690 + 850) / 2, (112 + 270) / 2, (850 - 690) / 2, (270 - 112) / 2),
+            ((590 + 750) / 2, (374 + 530) / 2, (750 - 590) / 2, (530 - 374) / 2),
+        ]
+        lanes = [list(path) for path in self.paths.values()]
+
+        for row in range(rows):
+            for col in range(cols):
+                px = col * ts + ts / 2
+                py = row * ts + ts / 2
+                rng = random.Random(f"map:{col}:{row}")
+                if col == 0 or row == 0 or col == cols - 1 or row == rows - 1:
+                    tile = sprites.map_tile(f"wall_{rng.randrange(3)}", ts, fallback_color="#3a2b2c")
+                else:
+                    base_tint = next(((tint) for poly, tint in bases if point_in_polygon(px, py, poly)), None)
+                    if base_tint:
+                        tile = sprites.map_tile(f"floor_sand_{rng.randrange(6)}", ts, base_tint, fallback_color="#203f5f")
+                    elif any(dist_to_polyline(px, py, path) <= 26 for path in lanes):
+                        tile = sprites.map_tile(f"floor_lane_{rng.randrange(4)}", ts, fallback_color="#8d8b73")
+                    elif point_in_polygon(px, py, river):
+                        tile = sprites.map_tile(f"floor_lane_{rng.randrange(4)}", ts, (150, 220, 230), fallback_color="#234a55")
+                    elif any(((px - cx) / rx) ** 2 + ((py - cy) / ry) ** 2 <= 1 for cx, cy, rx, ry in jungles):
+                        tile = sprites.map_tile(f"floor_jungle_{rng.randrange(5)}", ts, (150, 200, 150), fallback_color="#1e3c2b")
+                    elif math.hypot(px - 550, py - 350) <= 66:
+                        tile = sprites.map_tile(f"decor_{rng.randrange(2)}", ts, fallback_color="#2d3a2a")
+                    else:
+                        tile = sprites.map_tile(f"floor_sand_{rng.randrange(6)}", ts, fallback_color="#17291f")
+                surface.blit(tile, (col * ts, row * ts))
+
         for left, top, right, bottom in BRUSH_ZONES:
             rect(surface, left, top, right, bottom, fill="#123722", outline="#3f6b42", width=2)
             for i in range(6):
                 x = left + 12 + i * ((right - left - 24) / 5)
                 line(surface, [x, bottom - 4, x + 8, top + 8], "#5a8b53", 2, rounded=False)
-        for lane, path in self.paths.items():
+        for path in self.paths.values():
             points = []
             for x, y in path:
                 points.extend([x, y])
-            line(surface, points, "#56624d", 54)
-            line(surface, points, "#8d8b73", 34)
             line(surface, points, "#c0b988", 3, dash=(12, 14), rounded=False)
-
-        for i in range(28):
-            rng = random.Random(i)
-            x = rng.randint(40, WIDTH - 40)
-            y = rng.randint(45, HEIGHT - 45)
-            oval(surface, x - 8, y - 5, x + 8, y + 5, fill="#203c2d")
-
-        polygon(surface, [0, HEIGHT, 0, 505, 188, HEIGHT], fill="#203f5f")
-        polygon(surface, [WIDTH, 0, WIDTH, 195, 912, 0], fill="#5b2428")
         return surface
 
     def draw_map(self, c):
