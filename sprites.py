@@ -196,6 +196,9 @@ def hero_portrait(hero_key, role, accent):
 
 
 def minion_sprite(kind, team_name, frame=0):
+    override = _load_override(f"sprites/minions/{kind}_{team_name}" + ("_b" if frame else "") + ".png")
+    if override:
+        return override
     key = ("minion", kind, team_name, frame)
     if key in _surfaces:
         return _surfaces[key]
@@ -303,3 +306,16 @@ def portrait_scaled(hero_key, role, accent, size):
     scaled = pygame.transform.smoothscale(hero_portrait(hero_key, role, accent), (size, size))
     _rotated[key] = scaled
     return scaled
+
+
+def skill_icon(slot, size):
+    """Skill slot icon (q/e/r) from assets/icons/skills; None when absent."""
+    key = ("skill_icon", slot, size)
+    if key in _rotated:
+        return _rotated[key]
+    override = _load_override(f"icons/skills/{slot}.png")
+    if override is None:
+        return None
+    icon = pygame.transform.smoothscale(override, (size, size))
+    _rotated[key] = icon
+    return icon

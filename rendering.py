@@ -588,22 +588,11 @@ class RenderingMixin:
 
     def draw_menu_backdrop(self, c):
         if self._menu_backdrop is None:
-            surface = pygame.Surface((WIDTH, HEIGHT))
-            surface.fill("#14191c")
-            for path in self.paths.values():
-                points = []
-                for x, y in path:
-                    points.extend([x, y])
-                line(surface, points, "#263139", 62)
-                line(surface, points, "#3f4b4e", 28)
-            oval(surface, -90, HEIGHT - 160, 230, HEIGHT + 160, fill="#203f5f")
-            oval(surface, WIDTH - 230, -160, WIDTH + 90, 160, fill="#5b2428")
-            for i in range(18):
-                rng = random.Random(100 + i)
-                x = rng.randint(80, WIDTH - 80)
-                y = rng.randint(130, HEIGHT - 80)
-                rect(surface, x - 18, y - 2, x + 18, y + 2, fill="#2d3939")
-            self._menu_backdrop = surface
+            base = self.build_map_surface()
+            shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            shade.fill((8, 12, 14, 165))
+            base.blit(shade, (0, 0))
+            self._menu_backdrop = base
         c.blit(self._menu_backdrop, (0, 0))
 
     def draw_hero_portrait(self, c, x, y, hero_key, accent):
@@ -1217,7 +1206,11 @@ class RenderingMixin:
             left = ready_at - current
             pct = clamp(left / full_cd, 0, 1)
             pie(c, x, y, r, pct)
-        text(c, x, y, label, "#f5f1d7", 15, True)
+        icon = sprites.skill_icon(label.lower(), r * 2 - 8) if label.lower() in ("q", "e", "r") else None
+        if icon:
+            c.blit(icon, icon.get_rect(center=(x, y)))
+        else:
+            text(c, x, y, label, "#f5f1d7", 15, True)
         if locked:
             text(c, x, y + 25, self.text("locked"), "#ffb0aa", 8, True)
         elif not ready:

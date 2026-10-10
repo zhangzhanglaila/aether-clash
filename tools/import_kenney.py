@@ -51,6 +51,11 @@ MAP_TILES = {
     "wall_0": 57, "wall_1": 58, "wall_2": 59,
     "decor_0": 42, "decor_1": 43,
 }
+# minion source tiles, tinted per team; melee soldier, ranged archer, siege golem
+MINION_TILES = {"melee": 85, "ranged": 112, "siege": 109}
+TEAM_TINTS = {"blue": (140, 170, 255), "red": (255, 150, 140)}
+# skill slot icons: Q sword, E potion, R wand
+SKILL_ICONS = {"q": 106, "e": 116, "r": 130}
 TILE = 16
 BATTLE_SCALE = 3   # 16 -> 48
 PORTRAIT_SCALE = 6 # 16 -> 96
@@ -109,6 +114,25 @@ def main():
     for name, tile_index in MAP_TILES.items():
         tile = load_tile(tiles_dir, tile_index)
         save(tile, f"sprites/map/{name}.png")
+
+    for kind, tile_index in MINION_TILES.items():
+        tile = load_tile(tiles_dir, tile_index)
+        for team, tint in TEAM_TINTS.items():
+            tinted = tile.copy()
+            layer = pygame.Surface((TILE, TILE))
+            layer.fill(tint)
+            tinted.blit(layer, (0, 0), special_flags=pygame.BLEND_MULT)
+            art = pygame.transform.scale(tinted, (32, 32))
+            for frame, offset in ((0, 0), (1, 2)):
+                canvas = pygame.Surface((32, 34), pygame.SRCALPHA)
+                canvas.blit(art, (0, offset))
+                suffix = "_b" if frame else ""
+                save(canvas, f"sprites/minions/{kind}_{team}{suffix}.png")
+
+    for slot, tile_index in SKILL_ICONS.items():
+        tile = load_tile(tiles_dir, tile_index)
+        icon = pygame.transform.scale(tile, (48, 48))
+        save(icon, f"icons/skills/{slot}.png")
 
     print("done — art is CC0 from Kenney Tiny Dungeon (https://kenney.nl/assets/tiny-dungeon)")
 
